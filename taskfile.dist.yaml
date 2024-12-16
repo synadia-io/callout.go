@@ -1,0 +1,21 @@
+# this needs `tasks` and `node` installed
+# brew install go-task - https://taskfile.dev
+# task setup
+version: '3'
+
+tasks:
+  cover:
+    cmds:
+      - go tool cover -html=coverage.out
+  test:
+    deps:
+    cmds:
+      - rm -f ./coverage.out
+      - go test -coverpkg=./... -coverprofile=./coverage.out ./...
+      - go tool cover -html=./coverage.out
+  lint:
+    cmds:
+      - golangci-lint run
+  fmt:
+    cmds:
+      - gofumpt -l -w .
