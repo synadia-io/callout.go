@@ -7,17 +7,12 @@ import (
 	"time"
 
 	"github.com/nats-io/jwt/v2"
-	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go/micro"
 )
 
 type Callout struct {
-	authorizer       Authorizer
-	responseSignerFn ResponseSigner
-	keys             *Keys
-	logger           server.Logger
-	errFn            AuthorizerErrCallback
-	service          micro.Service
+	opts    *Options
+	service micro.Service
 }
 
 func (c *Callout) decode(msg micro.Request) (bool, *jwt.AuthorizationRequest, error) {
@@ -32,18 +27,18 @@ func (c *Callout) decode(msg micro.Request) (bool, *jwt.AuthorizationRequest, er
 	}
 
 	// checkKey misconfiguration
-	if c.keys.EncryptionKey != nil && !isEncrypted {
-		c.logger.Errorf("configuration mismatch: service requires encryption but server doesn't")
+	if c.opts.Keys.EncryptionKey != nil && !isEncrypted {
+		c.opts.Logger.Errorf("configuration mismatch: service requires encryption but server doesn't")
 		return true, nil, fmt.Errorf("configuration mismatch: service requires encryption")
 	}
-	if c.keys.EncryptionKey == nil && isEncrypted {
+	if c.opts.Keys.EncryptionKey == nil && isEncrypted {
 		return true, nil, fmt.Errorf("configuration mismatch: service does not require encryption but server does")
 	}
 
 	var serverKey string
-	if c.keys.EncryptionKey != nil {
+	if c.opts.Keys.EncryptionKey != nil {
 		serverKey = msg.Headers().Get(NatsServerXKeyHeader)
-		dd, err := c.keys.EncryptionKey.Open(data, serverKey)
+		dd, err := c.opts.Keys.EncryptionKey.Open(data, serverKey)
 		if err != nil {
 			return true, nil, fmt.Errorf("failed to decrypt message: %v", err.Error())
 		}
@@ -62,9 +57,9 @@ func (c *Callout) decode(msg micro.Request) (bool, *jwt.AuthorizationRequest, er
 }
 
 func (c *Callout) notify(err error) {
-	c.logger.Errorf("%v", err)
-	if c.errFn != nil {
-		c.errFn(err)
+	c.opts.Logger.Errorf("%v", err)
+	if c.opts.ErrorFn != nil {
+		c.opts.ErrorFn(err)
 	}
 }
 
@@ -74,24 +69,24 @@ func (c *Callout) reject(msg micro.Request, err error) {
 		"401",
 		"reject",
 		nil); err != nil {
-		c.logger.Errorf("failed to respond: %v", err)
+		c.opts.Logger.Errorf("failed to respond: %v", err)
 	}
 }
 
 func (c *Callout) sendResponse(msg micro.Request, isEncrypted bool, req *jwt.AuthorizationRequest, resp *jwt.AuthorizationResponseClaims) error {
 	var token string
 	var err error
-	if c.responseSignerFn != nil {
-		token, err = c.responseSignerFn(resp)
+	if c.opts.ResponseSigner != nil {
+		token, err = c.opts.ResponseSigner(resp)
 	} else {
-		token, err = resp.Encode(c.keys.ResponseSigner)
+		token, err = resp.Encode(c.opts.Keys.ResponseSignerKey)
 	}
 	if err != nil {
 		return fmt.Errorf("error encoding response for %s: %w", req.UserNkey, err)
 	}
 	data := []byte(token)
 	if isEncrypted {
-		data, err = c.keys.EncryptionKey.Seal([]byte(token), req.Server.XKey)
+		data, err = c.opts.Keys.EncryptionKey.Seal([]byte(token), req.Server.XKey)
 		if err != nil {
 			return fmt.Errorf("error encrypting response for %s: %w", req.UserNkey, err)
 		}
@@ -123,18 +118,18 @@ func (c *Callout) ServiceHandler(msg micro.Request) {
 
 	start := time.Now()
 	defer func() {
-		c.logger.Tracef("authorization for %s took %v", req.UserNkey, time.Since(start))
+		c.opts.Logger.Tracef("authorization for %s took %v", req.UserNkey, time.Since(start))
 	}()
 
 	// prepare the response
 	resp := jwt.NewAuthorizationResponseClaims(req.UserNkey)
 	resp.Audience = req.Server.ID
-	if c.keys.ResponseSignerIssuer != nil {
+	if c.opts.Keys.ResponseSignerIssuer != "" {
 		// key already validated
-		resp.IssuerAccount, _ = c.keys.ResponseSignerIssuer.PublicKey()
+		resp.IssuerAccount = c.opts.Keys.ResponseSignerIssuer
 	}
 	// authorize
-	user, err := c.authorizer(req)
+	user, err := c.opts.Authorizer(req)
 	resp.Jwt = user
 	// if we don't have a user nor an error - callout failed to do the right thing, put an error
 	if user == "" && err == nil {

@@ -36,6 +36,7 @@ func (s *DelegatedTestSuite) SetupSuite() {
 	s.dir = nst.NewTestDir(s.T(), "", "")
 
 	var err error
+	// NscProvider shouldn't be used in production (should use the KvProvider) or simply use Keys.
 	s.auth, err = authb.NewAuth(nsc.NewNscProvider(fmt.Sprintf("%s/nsc/stores", s.dir), fmt.Sprintf("%s/nsc/keys", s.dir)))
 	s.NoError(err)
 
@@ -97,12 +98,10 @@ func (s *DelegatedTestSuite) TestStart() {
 	s.Error(err)
 	s.Contains(err.Error(), "timeout")
 
-	// use the auth to issue, production should just assign keys
-	keys := &Keys{}
-
 	o, _ := s.auth.Operators().Get("O")
 	a, _ := o.Accounts().Get("A")
 	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
+		// Using auth builder to issue the JWT
 		u, err := a.Users().AddWithIdentity("user", s.aSigningKey, req.UserNkey)
 		s.NoError(err)
 		err = u.PubPermissions().SetAllow("foo.bar", "$SYS.REQ.USER.INFO")
@@ -112,10 +111,13 @@ func (s *DelegatedTestSuite) TestStart() {
 		return u.JWT(), nil
 	}
 
+	// using a ResponseSignerFn to issue the AuthorizationResponse
 	c, _ := o.Accounts().Get("C")
-	svc, err := AuthorizationService(service, authorizer, keys, nil, nil, func(claims *jwt.AuthorizationResponseClaims) (string, error) {
+	responseSignerFn := func(claims *jwt.AuthorizationResponseClaims) (string, error) {
 		return c.IssueAuthorizationResponse(claims, "")
-	})
+	}
+
+	svc, err := AuthorizationService(service, AuthorizerFn(authorizer), ResponseSigner(responseSignerFn))
 	s.NoError(err)
 	s.NotNil(svc)
 	defer svc.Stop()

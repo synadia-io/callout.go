@@ -77,9 +77,6 @@ func (s *ConfTestSuite) connectService() *nats.Conn {
 }
 
 func (s *ConfTestSuite) TestOK() {
-	keys := &Keys{
-		ResponseSigner: s.akp,
-	}
 	// here's a simple Authorizer function that authorizes all users
 	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
 		uc := jwt.NewUserClaims(req.UserNkey)
@@ -91,7 +88,7 @@ func (s *ConfTestSuite) TestOK() {
 	service := s.connectService()
 	defer service.Close()
 
-	svc, err := AuthorizationService(service, authorizer, keys, nil, nil, nil)
+	svc, err := AuthorizationService(service, AuthorizerFn(authorizer), ResponseSignerKey(s.akp))
 	s.NoError(err)
 	s.NotNil(svc)
 	defer svc.Stop()
@@ -106,9 +103,6 @@ func (s *ConfTestSuite) TestOK() {
 }
 
 func (s *ConfTestSuite) TestBlackListed() {
-	keys := &Keys{
-		ResponseSigner: s.akp,
-	}
 	// here's a simple Authorizer function that authorizes all users
 	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
 		if req.ConnectOptions.Username == "blacklisted" {
@@ -122,7 +116,7 @@ func (s *ConfTestSuite) TestBlackListed() {
 	service := s.connectService()
 	defer service.Close()
 
-	svc, err := AuthorizationService(service, authorizer, keys, nil, nil, nil)
+	svc, err := AuthorizationService(service, AuthorizerFn(authorizer), ResponseSignerKey(s.akp))
 	s.NoError(err)
 	s.NotNil(svc)
 	defer svc.Stop()
@@ -136,9 +130,6 @@ func (s *ConfTestSuite) TestBlackListed() {
 }
 
 func (s *ConfTestSuite) TestBadGenerate() {
-	keys := &Keys{
-		ResponseSigner: s.akp,
-	}
 	// here's a simple Authorizer function that authorizes all users
 	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
 		if req.ConnectOptions.Username == "bad generate" {
@@ -159,9 +150,9 @@ func (s *ConfTestSuite) TestBadGenerate() {
 	defer service.Close()
 
 	var lastErr error
-	svc, err := AuthorizationService(service, authorizer, keys, nil, func(err error) {
+	svc, err := AuthorizationService(service, AuthorizerFn(authorizer), ResponseSignerKey(s.akp), ErrCallbackFn(func(err error) {
 		lastErr = err
-	}, nil)
+	}))
 	s.NoError(err)
 	s.NotNil(svc)
 	defer svc.Stop()
@@ -178,9 +169,6 @@ func (s *ConfTestSuite) TestBadGenerate() {
 }
 
 func (s *ConfTestSuite) TestBadPermissions() {
-	keys := &Keys{
-		ResponseSigner: s.akp,
-	}
 	// here's a simple Authorizer function that authorizes all users
 	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
 		if req.ConnectOptions.Username == "bad perms" {
@@ -198,9 +186,9 @@ func (s *ConfTestSuite) TestBadPermissions() {
 	defer service.Close()
 
 	var lastErr error
-	svc, err := AuthorizationService(service, authorizer, keys, nil, func(err error) {
+	svc, err := AuthorizationService(service, AuthorizerFn(authorizer), ResponseSignerKey(s.akp), ErrCallbackFn(func(err error) {
 		lastErr = err
-	}, nil)
+	}))
 	s.NoError(err)
 	s.NotNil(svc)
 	defer svc.Stop()
