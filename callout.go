@@ -12,11 +12,12 @@ import (
 )
 
 type Callout struct {
-	authorizer Authorizer
-	keys       *Keys
-	logger     server.Logger
-	errFn      AuthorizerErrCallback
-	service    micro.Service
+	authorizer       Authorizer
+	responseSignerFn ResponseSigner
+	keys             *Keys
+	logger           server.Logger
+	errFn            AuthorizerErrCallback
+	service          micro.Service
 }
 
 func (c *Callout) decode(msg micro.Request) (bool, *jwt.AuthorizationRequest, error) {
@@ -78,7 +79,13 @@ func (c *Callout) reject(msg micro.Request, err error) {
 }
 
 func (c *Callout) sendResponse(msg micro.Request, isEncrypted bool, req *jwt.AuthorizationRequest, resp *jwt.AuthorizationResponseClaims) error {
-	token, err := resp.Encode(c.keys.ResponseSigner)
+	var token string
+	var err error
+	if c.responseSignerFn != nil {
+		token, err = c.responseSignerFn(resp)
+	} else {
+		token, err = resp.Encode(c.keys.ResponseSigner)
+	}
 	if err != nil {
 		return fmt.Errorf("error encoding response for %s: %w", req.UserNkey, err)
 	}

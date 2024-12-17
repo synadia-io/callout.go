@@ -2,16 +2,17 @@ package callout
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
-	"callout/nst"
+	"github.com/aricart/nst.go"
+	authb "github.com/synadia-io/jwt-auth-builder.go"
+	"github.com/synadia-io/jwt-auth-builder.go/providers/nsc"
 
 	"github.com/nats-io/jwt/v2"
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nkeys"
-	"github.com/nats-io/nuid"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -21,133 +22,64 @@ func TestDelegated(t *testing.T) {
 
 type DelegatedTestSuite struct {
 	suite.Suite
-	dir  *nst.TestDir
-	ns   *nst.NatsServer
-	keys map[string]nkeys.KeyPair
-	jwts map[string]string
-}
-
-func (s *DelegatedTestSuite) AddKey(name string, kind nkeys.PrefixByte) nkeys.KeyPair {
-	kp, err := nkeys.CreatePair(kind)
-	s.NoError(err)
-	if s.keys == nil {
-		s.keys = make(map[string]nkeys.KeyPair)
-	}
-	s.keys[name] = kp
-	return kp
-}
-
-func (s *DelegatedTestSuite) GetKey(name string) nkeys.KeyPair {
-	v := s.keys[name]
-	s.NotNil(v)
-	return v
-}
-
-func (s *DelegatedTestSuite) GetSeed(name string) []byte {
-	v := s.keys[name]
-	s.NotNil(v)
-	seed, err := v.Seed()
-	s.NoError(err)
-	return seed
-}
-
-func (s *DelegatedTestSuite) GetPublicKey(name string) string {
-	kp := s.GetKey(name)
-	pk, err := kp.PublicKey()
-	s.NoError(err)
-	return pk
+	dir           *nst.TestDir
+	ns            *nst.NatsServer
+	auth          authb.Auth
+	aPub          string
+	aSigningKey   string
+	calloutKey    string
+	sentinelCreds string
+	serviceCreds  string
 }
 
 func (s *DelegatedTestSuite) SetupSuite() {
-	s.dir = nst.NewTestDir(s.T())
+	s.dir = nst.NewTestDir(s.T(), "", "")
 
-	type ResolverConfig struct {
-		Type string `json:"type"`
-	}
-
-	type Conf struct {
-		HTTP          string            `json:"http"`
-		Operator      string            `json:"operator"`
-		SystemAccount string            `json:"system_account"`
-		Resolver      ResolverConfig    `json:"resolver"`
-		Preload       map[string]string `json:"resolver_preload"`
-	}
-
-	conf := Conf{}
-	conf.HTTP = "0.0.0.0:-1"
-	conf.Preload = make(map[string]string)
-	conf.Resolver.Type = "mem"
-
-	// system account
-	s.AddKey("SYS", nkeys.PrefixByteAccount)
-	sys := jwt.NewAccountClaims(s.GetPublicKey("SYS"))
-	sys.Name = "SYS"
-	sysJWT, err := sys.Encode(s.AddKey("O", nkeys.PrefixByteOperator))
-	s.NoError(err)
-	conf.Preload[s.GetPublicKey("SYS")] = sysJWT
-	conf.SystemAccount = s.GetPublicKey("SYS")
-
-	// operator
-	oc := jwt.NewOperatorClaims(s.GetPublicKey("O"))
-	oc.SystemAccount = s.GetPublicKey("SYS")
-	conf.Operator, err = oc.Encode(s.GetKey("O"))
+	var err error
+	s.auth, err = authb.NewAuth(nsc.NewNscProvider(fmt.Sprintf("%s/nsc/stores", s.dir), fmt.Sprintf("%s/nsc/keys", s.dir)))
 	s.NoError(err)
 
-	// target account - where users will be placed
-	s.AddKey("A", nkeys.PrefixByteAccount)
-	ac := jwt.NewAccountClaims(s.GetPublicKey("A"))
-	ac.Name = "A"
-	accountJWT, err := ac.Encode(s.GetKey("O"))
-	s.NoError(err)
-	conf.Preload[s.GetPublicKey("A")] = accountJWT
-
-	// the id of the service user that will connect to the service
-	// account and will run the callout
-	s.AddKey("AUTH_U", nkeys.PrefixByteUser)
-	// the connection account - where users initially connect
-	s.AddKey("AUTH", nkeys.PrefixByteAccount)
-	auth := jwt.NewAccountClaims(s.GetPublicKey("AUTH"))
-	auth.Name = "AUTH"
-	auth.Authorization.AuthUsers.Add(s.GetPublicKey("AUTH_U"))
-	auth.Authorization.AllowedAccounts.Add(s.GetPublicKey("A"))
-	authJWT, err := auth.Encode(s.GetKey("O"))
-	conf.Preload[s.GetPublicKey("AUTH")] = authJWT
-
-	data, err := json.MarshalIndent(conf, "", "  ")
+	o, err := s.auth.Operators().Add("O")
 	s.NoError(err)
 
-	configFile := s.dir.WriteServerConf(string(data))
+	sys, err := o.Accounts().Add("SYS")
+	s.NoError(err)
+	s.NoError(o.SetSystemAccount(sys))
+
+	// account where we place the users
+	a, err := o.Accounts().Add("A")
+	s.NoError(err)
+	s.aPub = a.Subject()
+	s.aSigningKey, err = a.ScopedSigningKeys().Add()
+
+	// this is the auth callout account
+	c, err := o.Accounts().Add("C")
+	s.NoError(err)
+
+	cu, err := c.Users().Add("auth_user", "")
+	s.NoError(err)
+	serviceCreds, err := cu.Creds(time.Hour)
+	s.serviceCreds = s.dir.WriteFile("service.creds", serviceCreds)
+
+	// configure the external authorization
+	s.NoError(c.SetExternalAuthorizationUser([]authb.User{cu}, []authb.Account{a}, ""))
+
+	// this is the sentinel user token, they can do nothing,
+	sentinel, err := c.Users().Add("sentinel", "")
+	s.NoError(err)
+	s.NoError(sentinel.PubPermissions().SetDeny(">"))
+	s.NoError(sentinel.SubPermissions().SetDeny(">"))
+	// save the sentinel creds
+	sentinelCreds, err := sentinel.Creds(time.Hour)
+	s.NoError(err)
+	s.sentinelCreds = s.dir.WriteFile("sentinels.creds", sentinelCreds)
+
+	resolver := nst.ResolverFromAuth(s.T(), o)
 
 	// start the server with the configuration
 	s.ns = nst.NewNatsServer(s.T(), &natsserver.Options{
-		ConfigFile: configFile,
-		Debug:      true,
-		Trace:      true,
-		NoLog:      false,
+		ConfigFile: s.dir.WriteFile("server.conf", resolver.Marshal(s.T())),
 	})
-}
-
-func (s *DelegatedTestSuite) ConnectAuthService() *nats.Conn {
-	uc := jwt.NewUserClaims(s.GetPublicKey("AUTH_U"))
-	token, err := uc.Encode(s.GetKey("AUTH"))
-	s.NoError(err)
-	nc, err := s.ns.MaybeConnect(nats.UserJWTAndSeed(token, string(s.GetSeed("AUTH_U"))))
-	s.NoError(err)
-	return nc
-}
-
-func (s *DelegatedTestSuite) ConnectSentinel(options ...nats.Option) (*nats.Conn, error) {
-	id := nuid.Next()
-	s.AddKey(id, nkeys.PrefixByteUser)
-	uc := jwt.NewUserClaims(s.GetPublicKey(id))
-	uc.Name = "Sentinel_" + id
-	uc.Pub.Deny.Add(">")
-	uc.Sub.Deny.Add(">")
-	token, err := uc.Encode(s.GetKey("AUTH"))
-	s.NoError(err)
-
-	options = append(options, nats.UserJWTAndSeed(token, string(s.GetSeed(id))))
-	return s.ns.MaybeConnect(options...)
 }
 
 func (s *DelegatedTestSuite) TearDownSuite() {
@@ -156,33 +88,51 @@ func (s *DelegatedTestSuite) TearDownSuite() {
 }
 
 func (s *DelegatedTestSuite) TestStart() {
-	service := s.ConnectAuthService()
+	service, err := s.ns.MaybeConnect(nats.UserCredentials(s.serviceCreds))
+	s.NoError(err)
 	defer service.Close()
-	s.T().Log(service.ConnectedUrl())
 
-	// this will fail
-	_, err := s.ConnectSentinel(nats.MaxReconnects(1))
+	// this will fail - service is not running yet
+	_, err = s.ns.MaybeConnect(nats.UserCredentials(s.sentinelCreds), nats.MaxReconnects(1))
 	s.Error(err)
 	s.Contains(err.Error(), "timeout")
 
-	keys := &Keys{
-		ResponseSigner: s.GetKey("AUTH"),
-	}
+	// use the auth to issue, production should just assign keys
+	keys := &Keys{}
 
+	o, _ := s.auth.Operators().Get("O")
+	a, _ := o.Accounts().Get("A")
 	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
-		uc := jwt.NewUserClaims(req.UserNkey)
-		return uc.Encode(s.GetKey("A"))
+		u, err := a.Users().AddWithIdentity("user", s.aSigningKey, req.UserNkey)
+		s.NoError(err)
+		err = u.PubPermissions().SetAllow("foo.bar", "$SYS.REQ.USER.INFO")
+		s.NoError(err)
+		err = u.SubPermissions().SetAllow("_INBOX.>")
+		s.NoError(err)
+		return u.JWT(), nil
 	}
 
-	svc, err := AuthorizationService(service, authorizer, keys, nil, nil)
+	c, _ := o.Accounts().Get("C")
+	svc, err := AuthorizationService(service, authorizer, keys, nil, nil, func(claims *jwt.AuthorizationResponseClaims) (string, error) {
+		return c.IssueAuthorizationResponse(claims, "")
+	})
 	s.NoError(err)
 	s.NotNil(svc)
 	defer svc.Stop()
 
-	nc, err := s.ConnectSentinel(nats.MaxReconnects(1))
+	nc, err := s.ns.MaybeConnect(nats.UserCredentials(s.sentinelCreds), nats.MaxReconnects(1))
 	s.NoError(err)
 	defer nc.Close()
+
 	r, err := nc.Request("$SYS.REQ.USER.INFO", []byte{}, time.Second*2)
 	s.NoError(err)
-	s.T().Logf("%v", string(r.Data))
+
+	var info nst.UserInfo
+	s.NoError(json.Unmarshal(r.Data, &info))
+	s.Equal(info.Data.Account, s.aPub)
+	s.Len(info.Data.Permissions.Publish.Allow, 2)
+	s.True(info.Data.Permissions.Publish.Allow.Contains("foo.bar"))
+	s.True(info.Data.Permissions.Publish.Allow.Contains("$SYS.REQ.USER.INFO"))
+	s.Len(info.Data.Permissions.Subscribe.Allow, 1)
+	s.True(info.Data.Permissions.Subscribe.Allow.Contains("_INBOX.>"))
 }

@@ -22,12 +22,15 @@ type Authorizer func(req *jwt.AuthorizationRequest) (string, error)
 // returns an error, this is useful for tests
 type AuthorizerErrCallback func(err error)
 
+type ResponseSigner func(*jwt.AuthorizationResponseClaims) (string, error)
+
 func AuthorizationService(
 	nc *nats.Conn,
 	authorizer Authorizer,
 	keys *Keys,
 	Logger natsserver.Logger,
 	errFn AuthorizerErrCallback,
+	responseSignerFn ResponseSigner,
 ) (micro.Service, error) {
 	if Logger == nil {
 		Logger = nslogger.NewStdLogger(true, true, true, true, true)
@@ -41,15 +44,16 @@ func AuthorizationService(
 		return nil, fmt.Errorf("keys is required")
 	}
 
-	if err := keys.Valid(); err != nil {
+	if err := keys.Valid(responseSignerFn != nil); err != nil {
 		return nil, err
 	}
 
 	callout := &Callout{
-		authorizer: authorizer,
-		keys:       keys,
-		logger:     Logger,
-		errFn:      errFn,
+		authorizer:       authorizer,
+		keys:             keys,
+		logger:           Logger,
+		errFn:            errFn,
+		responseSignerFn: responseSignerFn,
 	}
 
 	config := micro.Config{

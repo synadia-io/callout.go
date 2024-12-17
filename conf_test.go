@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aricart/nst.go"
 	"github.com/nats-io/jwt/v2"
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/suite"
 )
-import "callout/nst"
 
 func TestConf(t *testing.T) {
 	suite.Run(t, new(ConfTestSuite))
@@ -31,7 +31,7 @@ func (s *ConfTestSuite) TearDownSuite() {
 }
 
 func (s *ConfTestSuite) SetupSuite() {
-	s.dir = nst.NewTestDir(s.T())
+	s.dir = nst.NewTestDir(s.T(), "", "")
 
 	// Generate the key for the issuer. Callouts for conf setups are slightly different
 	// because the authorization function will sign the user using the issuer, which also
@@ -57,7 +57,7 @@ func (s *ConfTestSuite) SetupSuite() {
         auth_users: ["auth"],
       },
     },`, pk)
-	configFile := s.dir.WriteServerConf(conf)
+	configFile := s.dir.WriteFile("server.conf", []byte(conf))
 
 	// start the server with the configuration
 	s.ns = nst.NewNatsServer(s.T(), &natsserver.Options{
@@ -69,10 +69,10 @@ func (s *ConfTestSuite) SetupSuite() {
 }
 
 func (s *ConfTestSuite) connectService() *nats.Conn {
-	nc, err := s.ns.ConnectWithOptions(&nats.Options{
-		User: "auth", Password: "pwd",
-	})
+	nc, err := s.ns.MaybeConnect(nats.UserInfo("auth", "pwd"))
 	s.NoError(err)
+	s.NotNil(nc)
+	s.T().Logf("Connected to service: %s", nc.ConnectedUrl())
 	return nc
 }
 
@@ -91,14 +91,12 @@ func (s *ConfTestSuite) TestOK() {
 	service := s.connectService()
 	defer service.Close()
 
-	svc, err := AuthorizationService(service, authorizer, keys, nil, nil)
+	svc, err := AuthorizationService(service, authorizer, keys, nil, nil, nil)
 	s.NoError(err)
 	s.NotNil(svc)
 	defer svc.Stop()
 
-	nc2, err := s.ns.ConnectWithOptions(&nats.Options{
-		User: "hello", Password: "world",
-	})
+	nc2, err := s.ns.MaybeConnect(nats.UserInfo("hello", "world"))
 	s.NoError(err)
 	s.NotNil(nc2)
 
@@ -124,20 +122,15 @@ func (s *ConfTestSuite) TestBlackListed() {
 	service := s.connectService()
 	defer service.Close()
 
-	svc, err := AuthorizationService(service, authorizer, keys, nil, nil)
+	svc, err := AuthorizationService(service, authorizer, keys, nil, nil, nil)
 	s.NoError(err)
 	s.NotNil(svc)
 	defer svc.Stop()
-
-	nc1, err := s.ns.ConnectWithOptions(&nats.Options{
-		User: "a", Password: "b",
-	})
+	nc1, err := s.ns.MaybeConnect(nats.UserInfo("a", "b"))
 	s.NoError(err)
 	s.NotNil(nc1)
 
-	nc2, err := s.ns.ConnectWithOptions(&nats.Options{
-		User: "blacklisted", Password: "secret", MaxReconnect: 1,
-	})
+	nc2, err := s.ns.MaybeConnect(nats.UserInfo("blacklisted", "secret"), nats.MaxReconnects(1))
 	s.Error(err)
 	s.Nil(nc2)
 }
@@ -168,20 +161,16 @@ func (s *ConfTestSuite) TestBadGenerate() {
 	var lastErr error
 	svc, err := AuthorizationService(service, authorizer, keys, nil, func(err error) {
 		lastErr = err
-	})
+	}, nil)
 	s.NoError(err)
 	s.NotNil(svc)
 	defer svc.Stop()
 
-	nc1, err := s.ns.ConnectWithOptions(&nats.Options{
-		User: "a", Password: "b",
-	})
+	nc1, err := s.ns.MaybeConnect(nats.UserInfo("a", "b"))
 	s.NoError(err)
 	s.NotNil(nc1)
 
-	nc2, err := s.ns.ConnectWithOptions(&nats.Options{
-		User: "bad generate", Password: "secret", MaxReconnect: 1,
-	})
+	nc2, err := s.ns.MaybeConnect(nats.UserInfo("bad generate", "secret"), nats.MaxReconnects(1))
 	s.Error(err)
 	s.Nil(nc2)
 	s.Error(lastErr)
@@ -211,20 +200,16 @@ func (s *ConfTestSuite) TestBadPermissions() {
 	var lastErr error
 	svc, err := AuthorizationService(service, authorizer, keys, nil, func(err error) {
 		lastErr = err
-	})
+	}, nil)
 	s.NoError(err)
 	s.NotNil(svc)
 	defer svc.Stop()
 
-	nc1, err := s.ns.ConnectWithOptions(&nats.Options{
-		User: "a", Password: "b",
-	})
+	nc1, err := s.ns.MaybeConnect(nats.UserInfo("a", "b"))
 	s.NoError(err)
 	s.NotNil(nc1)
 
-	nc2, err := s.ns.ConnectWithOptions(&nats.Options{
-		User: "bad perms", Password: "secret", MaxReconnect: 1,
-	})
+	nc2, err := s.ns.MaybeConnect(nats.UserInfo("bad perms", "secret"), nats.MaxReconnects(1))
 	s.Error(err)
 	s.Nil(nc2)
 	s.Error(lastErr)

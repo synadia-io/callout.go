@@ -6,6 +6,7 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
+// FIXME: external signing will require a function instead
 type Keys struct {
 	ResponseSigner       nkeys.KeyPair
 	ResponseSignerIssuer nkeys.KeyPair
@@ -26,16 +27,18 @@ func (k *Keys) CheckKey(kp nkeys.KeyPair, prefixByte nkeys.PrefixByte, seed bool
 	return nil
 }
 
-func (k *Keys) Valid() error {
-	if k.ResponseSigner == nil {
-		return fmt.Errorf("ResponseSigner is required")
-	}
-	if err := k.CheckKey(k.ResponseSigner, nkeys.PrefixByteAccount, true); err != nil {
-		return fmt.Errorf("ResponseSigner must be an account seed: %s", err.Error())
-	}
-	if k.ResponseSignerIssuer != nil {
-		if err := k.CheckKey(k.ResponseSignerIssuer, nkeys.PrefixByteAccount, false); err != nil {
-			return fmt.Errorf("ResponseSignerIssuer must be an account key: %s", err.Error())
+func (k *Keys) Valid(hasIssuerFn bool) error {
+	if !hasIssuerFn {
+		if k.ResponseSigner == nil {
+			return fmt.Errorf("ResponseSigner is required")
+		}
+		if err := k.CheckKey(k.ResponseSigner, nkeys.PrefixByteAccount, true); err != nil {
+			return fmt.Errorf("ResponseSigner must be an account seed: %s", err.Error())
+		}
+		if k.ResponseSignerIssuer != nil {
+			if err := k.CheckKey(k.ResponseSignerIssuer, nkeys.PrefixByteAccount, false); err != nil {
+				return fmt.Errorf("ResponseSignerIssuer must be an account key: %s", err.Error())
+			}
 		}
 	}
 	if k.EncryptionKey != nil {
