@@ -120,7 +120,9 @@ func (s *DelegatedTestSuite) TestStart() {
 	svc, err := AuthorizationService(service, AuthorizerFn(authorizer), ResponseSigner(responseSignerFn))
 	s.NoError(err)
 	s.NotNil(svc)
-	defer svc.Stop()
+	defer func() {
+		_ = svc.Stop()
+	}()
 
 	nc, err := s.ns.MaybeConnect(nats.UserCredentials(s.sentinelCreds), nats.MaxReconnects(1))
 	s.NoError(err)
@@ -132,9 +134,9 @@ func (s *DelegatedTestSuite) TestStart() {
 	var info nst.UserInfo
 	s.NoError(json.Unmarshal(r.Data, &info))
 	s.Equal(info.Data.Account, s.aPub)
-	s.Len(info.Data.Permissions.Publish.Allow, 2)
-	s.True(info.Data.Permissions.Publish.Allow.Contains("foo.bar"))
-	s.True(info.Data.Permissions.Publish.Allow.Contains("$SYS.REQ.USER.INFO"))
-	s.Len(info.Data.Permissions.Subscribe.Allow, 1)
-	s.True(info.Data.Permissions.Subscribe.Allow.Contains("_INBOX.>"))
+	s.Len(info.Data.Permissions.Pub.Allow, 2)
+	s.True(info.Data.Permissions.Pub.Allow.Contains("foo.bar"))
+	s.True(info.Data.Permissions.Pub.Allow.Contains("$SYS.REQ.USER.INFO"))
+	s.Len(info.Data.Permissions.Sub.Allow, 1)
+	s.True(info.Data.Permissions.Sub.Allow.Contains("_INBOX.>"))
 }
