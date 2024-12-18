@@ -3,7 +3,7 @@ module callout
 go 1.22
 
 require (
-	github.com/aricart/nst.go v0.0.3
+	github.com/aricart/nst.go v0.0.4
 	github.com/nats-io/jwt/v2 v2.7.3
 	github.com/nats-io/nats-server/v2 v2.11.0-preview.2
 	github.com/nats-io/nats.go v1.38.0
@@ -32,7 +32,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/aricart/nst.go => /Users/aricart/src/github.com/aricart/nst.go
-replace github.com/nats-io/nats-server/v2 => /Users/aricart/src/github.com/nats-io/nats-server
-
+//replace github.com/aricart/nst.go => /Users/aricart/src/github.com/aricart/nst.go
+//replace github.com/nats-io/nats-server/v2 => /Users/aricart/src/github.com/nats-io/nats-server
 //replace github.com/synadia-io/jwt-auth-builder.go => /Users/aricart/src/github.com/synadia-io/jwt-auth-builder.go
