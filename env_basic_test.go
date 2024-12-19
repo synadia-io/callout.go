@@ -30,9 +30,9 @@ func (bc *BasicEnv) GetServerConf() []byte {
 	pk, err := bc.akp.PublicKey()
 	require.NoError(bc.t, err)
 
-	conf := &nst.Conf{Accounts: map[string]nst.Account{}}
+	conf := &nst.Conf{}
 	conf.Authorization.Users.Add(nst.User{User: "auth", Password: "pwd"})
-	conf.Authorization = nst.Authorization{AuthCallout: &nst.AuthCallout{}}
+	conf.Authorization.AuthCallout = &nst.AuthCallout{}
 	conf.Authorization.AuthCallout.Issuer = pk
 	conf.Authorization.AuthCallout.AuthUsers.Add("auth")
 	return conf.Marshal(bc.t)

@@ -37,7 +37,7 @@ func (bc *BasicAccountEnv) GetServerConf() []byte {
 			{User: "auth", Password: "pwd"},
 		},
 	}
-	conf.Authorization = nst.Authorization{AuthCallout: &nst.AuthCallout{}}
+	conf.Authorization.AuthCallout = &nst.AuthCallout{}
 	conf.Authorization.AuthCallout.Issuer = pk
 	conf.Authorization.AuthCallout.Account = "AUTH"
 	conf.Authorization.AuthCallout.AuthUsers.Add("auth")

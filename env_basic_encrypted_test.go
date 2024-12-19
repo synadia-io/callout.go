@@ -39,7 +39,7 @@ func (bc *BasicEncryptedEnv) GetServerConf() []byte {
 
 	conf := &nst.Conf{Accounts: map[string]nst.Account{}}
 	conf.Authorization.Users.Add(nst.User{User: "auth", Password: "pwd"})
-	conf.Authorization = nst.Authorization{AuthCallout: &nst.AuthCallout{}}
+	conf.Authorization.AuthCallout = &nst.AuthCallout{}
 	conf.Authorization.AuthCallout.Issuer = pk
 	conf.Authorization.AuthCallout.XKey = pck
 	conf.Authorization.AuthCallout.AuthUsers.Add("auth")

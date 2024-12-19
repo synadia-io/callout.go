@@ -61,11 +61,11 @@ func TestDelegatedEnv(t *testing.T) {
 	suite.Run(t, cs)
 }
 
-//func TestDelegatedKeysEnv(t *testing.T) {
-//	cs := NewCalloutSuite(t)
-//	cs.env = NewDelegatedKeysEnv(t, cs.dir)
-//	suite.Run(t, cs)
-//}
+func TestDelegatedKeysEnv(t *testing.T) {
+	cs := NewCalloutSuite(t)
+	cs.env = NewDelegatedKeysEnv(t, cs.dir)
+	suite.Run(t, cs)
+}
 
 func (s *CalloutSuite) SetupServer(conf []byte) *nst.NatsServer {
 	return nst.NewNatsServer(s.T(), &natsserver.Options{
