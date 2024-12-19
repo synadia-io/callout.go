@@ -34,4 +34,4 @@ require (
 
 //replace github.com/aricart/nst.go => /Users/aricart/src/github.com/aricart/nst.go
 //replace github.com/nats-io/nats-server/v2 => /Users/aricart/src/github.com/nats-io/nats-server
-//replace github.com/synadia-io/jwt-auth-builder.go => /Users/aricart/src/github.com/synadia-io/jwt-auth-builder.go
+replace github.com/synadia-io/jwt-auth-builder.go => /Users/aricart/src/github.com/synadia-io/jwt-auth-builder.go
