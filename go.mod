@@ -9,7 +9,7 @@ require (
 	github.com/nats-io/nats.go v1.38.0
 	github.com/nats-io/nkeys v0.4.9
 	github.com/stretchr/testify v1.10.0
-	github.com/synadia-io/jwt-auth-builder.go v0.0.2-0.20241217012102-2e198d634d77
+	github.com/synadia-io/jwt-auth-builder.go v0.0.2-0.20241219030031-e40838f1e7f0
 
 )
 
@@ -34,4 +34,4 @@ require (
 
 //replace github.com/aricart/nst.go => /Users/aricart/src/github.com/aricart/nst.go
 //replace github.com/nats-io/nats-server/v2 => /Users/aricart/src/github.com/nats-io/nats-server
-replace github.com/synadia-io/jwt-auth-builder.go => /Users/aricart/src/github.com/synadia-io/jwt-auth-builder.go
+//replace github.com/synadia-io/jwt-auth-builder.go => /Users/aricart/src/github.com/synadia-io/jwt-auth-builder.go

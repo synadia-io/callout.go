@@ -1,7 +1,5 @@
 dario.cat/mergo v1.0.1 h1:Ra4+bf83h2ztPIQYNP99R6m+Y7KfnARDfID+a+vLl4s=
 dario.cat/mergo v1.0.1/go.mod h1:uNxQE+84aUszobStD9th8a29P2fMDhsBdgRYvZOxGmk=
-github.com/aricart/nst.go v0.0.3 h1:SgMwXNnFaa6oh5Ejr5eeyVOE8cveQJM1T/jeoDigq1I=
-github.com/aricart/nst.go v0.0.3/go.mod h1:ecOJcn+Sf9cwwFCLCfbP3L5HeUNstoGEYs9odOm0j9Y=
 github.com/aricart/nst.go v0.0.4 h1:kUPOc8Zuh+cam8Y6uv2/b+XHFlq/Lkc48CWNkTKSfQM=
 github.com/aricart/nst.go v0.0.4/go.mod h1:ecOJcn+Sf9cwwFCLCfbP3L5HeUNstoGEYs9odOm0j9Y=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
@@ -37,8 +35,8 @@ github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR
 github.com/rogpeppe/go-internal v1.13.1/go.mod h1:uMEvuHeurkdAXX61udpOXGD/AzZDWNMNyH2VO9fmH0o=
 github.com/stretchr/testify v1.10.0 h1:Xv5erBjTwe/5IxqUQTdXv5kgmIvbHo3QQyRwhJsOfJA=
 github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
-github.com/synadia-io/jwt-auth-builder.go v0.0.2-0.20241217012102-2e198d634d77 h1:WJ9pfd50MQKXfL2ZSKeKkBvqPtHBraowC1Y0HQVNW58=
-github.com/synadia-io/jwt-auth-builder.go v0.0.2-0.20241217012102-2e198d634d77/go.mod h1:W1N1zrcEwltalLDYTk74Zcs7nNrsaDQfZ4/SvyTz9w4=
+github.com/synadia-io/jwt-auth-builder.go v0.0.2-0.20241219030031-e40838f1e7f0 h1:vkR/iI4ZE8lIeMfsmeeA7wwchyJqirlAQFQtZcb0ZEA=
+github.com/synadia-io/jwt-auth-builder.go v0.0.2-0.20241219030031-e40838f1e7f0/go.mod h1:W1N1zrcEwltalLDYTk74Zcs7nNrsaDQfZ4/SvyTz9w4=
 golang.org/x/crypto v0.31.0 h1:ihbySMvVjLAeSH1IbfcRTkD/iNscyz8rGzjF/E5hV6U=
 golang.org/x/crypto v0.31.0/go.mod h1:kDsLvtWBEx7MV9tJOj9bnXsPbxwJQ6csT/x4KIN4Ssk=
 golang.org/x/sys v0.21.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
