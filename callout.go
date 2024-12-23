@@ -246,6 +246,20 @@ func (c *Callout) decode(
 		)
 		return isEncrypted, nil, wErr
 	}
+	if !bytes.HasPrefix([]byte(arc.Issuer), []byte{'N'}) {
+		wErr := errors.Join(
+			fmt.Errorf("bad request: expected server: %q", arc.Issuer),
+			ErrAbortRequest,
+		)
+		return isEncrypted, nil, wErr
+	}
+	if arc.Issuer != arc.Server.ID {
+		wErr := errors.Join(
+			fmt.Errorf("bad request: issuers don't match: %q != %q", arc.Audience, arc.Server.ID),
+			ErrAbortRequest,
+		)
+		return isEncrypted, nil, wErr
+	}
 	if arc.Audience != ExpectedAudience {
 		wErr := errors.Join(
 			fmt.Errorf("bad request: unexpected audience: %q", arc.Audience),
