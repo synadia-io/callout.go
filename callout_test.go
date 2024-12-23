@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	nslogger "github.com/nats-io/nats-server/v2/logger"
+	"github.com/nats-io/nats.go/micro"
+
 	"github.com/aricart/nst.go"
 	"github.com/nats-io/jwt/v2"
 	natsserver "github.com/nats-io/nats-server/v2/server"
@@ -492,4 +495,126 @@ func (s *CalloutSuite) TestBadPermissions() {
 
 	s.Error(lastErr)
 	s.Contains(lastErr.Error(), "cannot start or end with a `.`")
+}
+
+func (s *CalloutSuite) TestBadEncryption() {
+	// here's a simple AuthorizerFn function that authorizes all users
+	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
+		return "", errors.New("not allowed")
+	}
+
+	var lastErr error
+	opts := append(
+		s.env.ServiceOpts(),
+		Authorizer(authorizer),
+		ErrCallback(func(err error) {
+			lastErr = err
+		}),
+	)
+
+	options, err := processOptions(opts...)
+	s.NoError(err)
+	options.Logger = nslogger.NewStdLogger(true, true, true, true, true)
+	options.Authorizer = authorizer
+	callout := &Callout{opts: options}
+
+	handler := callout.ServiceHandler
+	// empty payload
+	handler(AdaptMsg(&nats.Msg{}))
+	s.Error(lastErr)
+	errors.Is(lastErr, errors.New("bad request: empty payload"))
+
+	// not enough characters
+	handler(AdaptMsg(&nats.Msg{Data: []byte("123")}))
+	s.Error(lastErr)
+	errors.Is(lastErr, errors.New("bad request: payload too short: 3"))
+
+	// encryption error
+	handler(AdaptMsg(&nats.Msg{Data: []byte("this is not valid")}))
+	s.Error(lastErr)
+	errors.Is(lastErr, errors.New("bad request: error decrypting message"))
+
+	// encryption error
+	handler(AdaptMsg(&nats.Msg{Data: []byte("eyJ0junk")}))
+	s.Error(lastErr)
+	errors.Is(lastErr, errors.New("bad request: error decoding auth request"))
+
+	akp, err := nkeys.CreateAccount()
+	s.NoError(err)
+	aid, err := akp.PublicKey()
+	s.NoError(err)
+	ukp, err := nkeys.CreateUser()
+	s.NoError(err)
+	id, err := ukp.PublicKey()
+	s.NoError(err)
+	skp, err := nkeys.CreateServer()
+	s.NoError(err)
+	sid, err := skp.PublicKey()
+	s.NoError(err)
+
+	// different issuer
+	skp2, err := nkeys.CreateServer()
+	s.NoError(err)
+	sid2, err := skp2.PublicKey()
+	s.NoError(err)
+
+	rc := jwt.NewAuthorizationRequestClaims(aid)
+	rc.Audience = ExpectedAudience
+	rc.UserNkey = id
+	rc.Server = jwt.ServerID{ID: sid2}
+	token, err := rc.Encode(skp)
+	s.NoError(err)
+	handler(AdaptMsg(&nats.Msg{Data: []byte(token)}))
+	s.Error(lastErr)
+	errors.Is(lastErr, errors.New("bad request: issuers don't match"))
+
+	// bad audience
+	rc = jwt.NewAuthorizationRequestClaims(aid)
+	rc.Audience = "Different Audience"
+	rc.UserNkey = id
+	rc.Server = jwt.ServerID{ID: sid}
+	token, err = rc.Encode(skp)
+	s.NoError(err)
+	handler(AdaptMsg(&nats.Msg{Data: []byte(token)}))
+	s.Error(lastErr)
+	errors.Is(lastErr, errors.New("bad request: unexpected audience"))
+}
+
+type ServiceMsgAdapter struct {
+	msg *nats.Msg
+}
+
+func AdaptMsg(m *nats.Msg) *ServiceMsgAdapter {
+	return &ServiceMsgAdapter{m}
+}
+
+func (m *ServiceMsgAdapter) Respond([]byte, ...micro.RespondOpt) error {
+	return m.msg.Respond(m.msg.Data)
+}
+
+func (m *ServiceMsgAdapter) RespondJSON(any, ...micro.RespondOpt) error {
+	return m.msg.Respond(m.msg.Data)
+}
+
+func (m *ServiceMsgAdapter) Error(code, description string, data []byte, opts ...micro.RespondOpt) error {
+	return nil
+}
+
+// Data returns request data.
+func (m *ServiceMsgAdapter) Data() []byte {
+	return m.msg.Data
+}
+
+// Headers returns request headers.
+func (m *ServiceMsgAdapter) Headers() micro.Headers {
+	return nil
+}
+
+// Subject returns underlying NATS message subject.
+func (m *ServiceMsgAdapter) Subject() string {
+	return m.msg.Subject
+}
+
+func (m *ServiceMsgAdapter) Reply() string {
+	return m.msg.Reply
 }
