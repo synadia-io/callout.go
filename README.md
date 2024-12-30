@@ -93,7 +93,7 @@ To create a callout, you would connect to the NATS server using the `auth` user
 and create a subscription to `$SYS.REQ.USER.AUTH`, and process the request as
 above. You can examine the source in this project to see the nuances.
 
-## Developing a Callout
+### The Callout Implementation
 
 If you are using the callout library, the process is greatly simplified:
 
@@ -114,7 +114,7 @@ authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
     uc.Sub.Allow.Add("_INBOX.>")
 	// perhaps add an expiration to the JWT
     uc.Expires = time.Now().Unix() + 90
-    return uc.Encode()
+    return uc.Encode(akp)
 }
 
 // create a connection using the callout user
@@ -125,5 +125,7 @@ nc, _ := nats.Connect(nats.UserInfo("auth", "pwd"))
 svc, err := AuthorizationService(serviceConn, Authorizer(authorizer), ResponseSignerKey(akp))
 // done!
 ```
+
+
 
 ## More Examples TBD (look at the source Luke)
