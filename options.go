@@ -30,6 +30,13 @@ func Logger(l natsserver.Logger) Option {
 	}
 }
 
+func AsyncHandler() Option {
+	return func(o *Options) error {
+		o.AsyncHandler = true
+		return nil
+	}
+}
+
 func ResponseSignerKey(kp nkeys.KeyPair) Option {
 	return func(o *Options) error {
 		seed, err := kp.Seed()

@@ -98,6 +98,8 @@ type Options struct {
 	ErrCallback ErrCallbackFn
 
 	ServiceWorkers int
+
+	AsyncHandler bool
 }
 
 // Option is a function type used to configure the Callout options
@@ -169,10 +171,18 @@ func AuthorizationService(
 			wErr := errors.Join(ErrService, err)
 			callout.opts.ErrCallback(wErr)
 		},
-		Endpoint: &micro.EndpointConfig{
+	}
+
+	if options.AsyncHandler {
+		config.Endpoint = &micro.EndpointConfig{
+			Subject: SysRequestUserAuthSubj,
+			Handler: micro.HandlerFunc(callout.AsyncServiceHandler),
+		}
+	} else {
+		config.Endpoint = &micro.EndpointConfig{
 			Subject: SysRequestUserAuthSubj,
 			Handler: micro.HandlerFunc(callout.ServiceHandler),
-		},
+		}
 	}
 
 	srv, err := micro.AddService(nc, config)
@@ -182,8 +192,12 @@ func AuthorizationService(
 		return nil, wErr
 	}
 	for i := 1; i < options.ServiceWorkers; i++ {
+		fn := callout.ServiceHandler
+		if options.AsyncHandler {
+			fn = callout.AsyncServiceHandler
+		}
 		if err = srv.AddEndpoint(fmt.Sprintf("w%d", i),
-			micro.HandlerFunc(callout.ServiceHandler),
+			micro.HandlerFunc(fn),
 			micro.WithEndpointSubject(SysRequestUserAuthSubj)); err != nil {
 			break
 		}
@@ -330,6 +344,12 @@ func (c *Callout) sendResponse(
 		}
 	}
 	return nil
+}
+
+func (c *Callout) AsyncServiceHandler(msg micro.Request) {
+	go func() {
+		c.ServiceHandler(msg)
+	}()
 }
 
 // ServiceHandler processes an incoming micro.Request to decode, validate, and

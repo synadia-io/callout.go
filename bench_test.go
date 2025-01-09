@@ -32,7 +32,7 @@ func (bs *BenchSuite) Cleanup() {
 	bs.dir.Cleanup()
 }
 
-func Setup(tb testing.TB, workers int) *BenchSuite {
+func Setup(tb testing.TB, opts ...Option) *BenchSuite {
 	dir := nst.NewTestDir(tb, "", "")
 	env := NewBasicEnv(tb, dir)
 
@@ -50,12 +50,12 @@ func Setup(tb testing.TB, workers int) *BenchSuite {
 		ns:  ns,
 	}
 
-	bs.AddService(tb, workers)
+	bs.AddService(tb, opts...)
 
 	return bs
 }
 
-func (bs *BenchSuite) AddService(tb testing.TB, workers int) {
+func (bs *BenchSuite) AddService(tb testing.TB, opts ...Option) {
 	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
 		uc := jwt.NewUserClaims(req.UserNkey)
 		uc.Audience = bs.env.Audience()
@@ -70,18 +70,36 @@ func (bs *BenchSuite) AddService(tb testing.TB, workers int) {
 	require.NoError(tb, err)
 	bs.serviceConn = append(bs.serviceConn, nc)
 
-	opts := append(bs.env.ServiceOpts(),
+	opts = append(bs.env.ServiceOpts(),
 		Authorizer(authorizer),
-		ServiceWorkers(workers),
-		Logger(nst.NewNilLogger()))
+		Logger(nst.NewNilLogger()),
+	)
+
 	svc, err := AuthorizationService(nc, opts...)
 	require.NoError(tb, err)
 	require.NotNil(tb, svc)
 	bs.service = append(bs.service, svc)
 }
 
-func Benchmark_PerfOne(b *testing.B) {
-	bs := Setup(b, 1)
+func Benchmark_PerfServiceHandler(b *testing.B) {
+	bs := Setup(b)
+	defer bs.Cleanup()
+
+	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
+	opts = append(opts, bs.env.UserOpts()...)
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			nc, err := bs.ns.MaybeConnect(opts...)
+			require.NoError(b, err)
+			require.NotNil(b, nc)
+		}
+	})
+}
+
+func Benchmark_PerfAsyncServiceHandler(b *testing.B) {
+	bs := Setup(b, AsyncHandler())
 	defer bs.Cleanup()
 
 	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
@@ -98,7 +116,7 @@ func Benchmark_PerfOne(b *testing.B) {
 }
 
 func Benchmark_PerfManyWorkers(b *testing.B) {
-	bs := Setup(b, 10)
+	bs := Setup(b, ServiceWorkers(10))
 	defer bs.Cleanup()
 
 	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
@@ -115,27 +133,10 @@ func Benchmark_PerfManyWorkers(b *testing.B) {
 }
 
 func Benchmark_PerfManyServices(b *testing.B) {
-	bs := Setup(b, 1)
+	bs := Setup(b)
 	for i := 0; i < 10; i++ {
-		bs.AddService(b, 1)
+		bs.AddService(b)
 	}
-	defer bs.Cleanup()
-
-	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
-	opts = append(opts, bs.env.UserOpts()...)
-	b.ResetTimer()
-
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			nc, err := bs.ns.MaybeConnect(opts...)
-			require.NoError(b, err)
-			require.NotNil(b, nc)
-		}
-	})
-}
-
-func Benchmark_PerfParallel(b *testing.B) {
-	bs := Setup(b, 1)
 	defer bs.Cleanup()
 
 	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
