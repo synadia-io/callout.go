@@ -11,12 +11,12 @@ import (
 )
 
 type BasicEnv struct {
-	t   *testing.T
+	t   testing.TB
 	dir *nst.TestDir
 	akp nkeys.KeyPair
 }
 
-func NewBasicEnv(t *testing.T, dir *nst.TestDir) *BasicEnv {
+func NewBasicEnv(t testing.TB, dir *nst.TestDir) *BasicEnv {
 	akp, err := nkeys.CreateAccount()
 	require.NoError(t, err)
 	return &BasicEnv{

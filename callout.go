@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/nats-io/jwt/v2"
 	nslogger "github.com/nats-io/nats-server/v2/logger"
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nkeys"
-
-	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go/micro"
+	"github.com/nats-io/nkeys"
 )
 
 type RequestContextError struct {
@@ -97,6 +96,8 @@ type Options struct {
 	InvalidUser InvalidUserCallbackFn
 
 	ErrCallback ErrCallbackFn
+
+	ServiceWorkers int
 }
 
 // Option is a function type used to configure the Callout options
@@ -178,6 +179,22 @@ func AuthorizationService(
 	if err != nil {
 		wErr := errors.Join(ErrService, fmt.Errorf("failed to add service: %w", err))
 		options.ErrCallback(wErr)
+		return nil, wErr
+	}
+	for i := 1; i < options.ServiceWorkers; i++ {
+		if err = srv.AddEndpoint(fmt.Sprintf("w%d", i),
+			micro.HandlerFunc(callout.ServiceHandler),
+			micro.WithEndpointSubject(SysRequestUserAuthSubj)); err != nil {
+			break
+		}
+		options.Logger.Noticef("added additional endpoint: %d", i+1)
+
+	}
+	if err != nil {
+		_ = srv.Stop()
+		wErr := errors.Join(ErrService, fmt.Errorf("failed to add endpoint: %w", err))
+		options.ErrCallback(wErr)
+		options.Logger.Errorf("authorization service failed to start: %s", err.Error())
 		return nil, wErr
 	}
 	options.Logger.Noticef("authorization service started: %s", nc.ConnectedUrl())

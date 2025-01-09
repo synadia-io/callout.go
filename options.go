@@ -5,9 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/nats-io/nkeys"
-
 	natsserver "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nkeys"
 )
 
 func Authorizer(fn AuthorizerFn) Option {
@@ -51,6 +50,13 @@ func ResponseSignerKey(kp nkeys.KeyPair) Option {
 func ResponseSigner(fn ResponseSignerFn) Option {
 	return func(o *Options) error {
 		o.ResponseSigner = fn
+		return nil
+	}
+}
+
+func ServiceWorkers(n int) Option {
+	return func(o *Options) error {
+		o.ServiceWorkers = n
 		return nil
 	}
 }
