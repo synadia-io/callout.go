@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/nats-io/jwt/v2"
 	nslogger "github.com/nats-io/nats-server/v2/logger"
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nkeys"
-
-	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go/micro"
+	"github.com/nats-io/nkeys"
 )
 
 type RequestContextError struct {
@@ -44,11 +44,6 @@ var (
 	ErrRejectedAuth       = errors.New("rejected authorization request")
 )
 
-type Callout struct {
-	opts    *Options
-	service micro.Service
-}
-
 const (
 	NatsServerXKeyHeader   = "Nats-Server-Xkey"
 	ExpectedAudience       = "nats-authorization-request"
@@ -75,6 +70,9 @@ type ResponseSignerFn func(*jwt.AuthorizationResponseClaims) (string, error)
 // Options defines a configuration struct for handling authorization and signing of
 // user JWTs within a service.
 type Options struct {
+	// Name for the AuthorizationService cannot have spaces, etc, as this is
+	// the name that the actual micro.Service will use.
+	Name string
 	// Authorizer function that processes authorization request and issues user JWT
 	Authorizer AuthorizerFn
 	// ResponseSigner is a function that performs the signing of the
@@ -97,9 +95,15 @@ type Options struct {
 	InvalidUser InvalidUserCallbackFn
 
 	ErrCallback ErrCallbackFn
+
+	ServiceEndpoints int
+
+	AsyncHandler bool
+
+	AsyncWorkers int
 }
 
-// Option is a function type used to configure the Callout options
+// Option is a function type used to configure the AuthorizationService options
 type Option func(*Options) error
 
 func processOptions(opts ...Option) (*Options, error) {
@@ -112,15 +116,25 @@ func processOptions(opts ...Option) (*Options, error) {
 	return options, nil
 }
 
-// AuthorizationService starts and configures an authorization microservice using
+type AuthorizationService struct {
+	opts      *Options
+	Service   micro.Service
+	workersCh chan micro.Request
+	wg        sync.WaitGroup
+}
+
+// NewAuthorizationService starts and configures an authorization microservice using
 // NATS messaging system. Returns the created microservice instance and error
 // if any issue occurs during setup.
-func AuthorizationService(
+func NewAuthorizationService(
 	nc *nats.Conn, opts ...Option,
-) (micro.Service, error) {
+) (*AuthorizationService, error) {
 	options, err := processOptions(opts...)
 	if err != nil {
 		return nil, err
+	}
+	if options.Name == "" {
+		options.Name = "auth"
 	}
 
 	if options.Logger == nil {
@@ -150,12 +164,31 @@ func AuthorizationService(
 		}
 	}
 
-	callout := &Callout{opts: options}
+	callout := &AuthorizationService{opts: options}
+
+	if options.AsyncWorkers > 0 {
+		callout.workersCh = make(chan micro.Request, 5000)
+		for i := 0; i < options.AsyncWorkers; i++ {
+			go func() {
+				callout.wg.Add(1)
+				defer callout.wg.Done()
+				for {
+					select {
+					case msg, ok := <-callout.workersCh:
+						if !ok {
+							return
+						}
+						callout.ServiceHandler(msg)
+					}
+				}
+			}()
+		}
+	}
 
 	config := micro.Config{
-		Name:        "auth",
+		Name:        options.Name,
 		Version:     "0.0.1",
-		Description: "AuthCallout Authorization Service",
+		Description: "Authorization Service",
 		DoneHandler: func(srv micro.Service) {
 			info := srv.Info()
 			options.Logger.Warnf(
@@ -168,10 +201,18 @@ func AuthorizationService(
 			wErr := errors.Join(ErrService, err)
 			callout.opts.ErrCallback(wErr)
 		},
-		Endpoint: &micro.EndpointConfig{
+	}
+
+	if options.AsyncWorkers > 0 {
+		config.Endpoint = &micro.EndpointConfig{
+			Subject: SysRequestUserAuthSubj,
+			Handler: micro.HandlerFunc(callout.AsyncWorkerHandler),
+		}
+	} else {
+		config.Endpoint = &micro.EndpointConfig{
 			Subject: SysRequestUserAuthSubj,
 			Handler: micro.HandlerFunc(callout.ServiceHandler),
-		},
+		}
 	}
 
 	srv, err := micro.AddService(nc, config)
@@ -180,9 +221,35 @@ func AuthorizationService(
 		options.ErrCallback(wErr)
 		return nil, wErr
 	}
+	for i := 1; i < options.ServiceEndpoints; i++ {
+		fn := callout.ServiceHandler
+		if err = srv.AddEndpoint(fmt.Sprintf("w%d", i),
+			micro.HandlerFunc(fn),
+			micro.WithEndpointSubject(SysRequestUserAuthSubj)); err != nil {
+			break
+		}
+		options.Logger.Noticef("added additional endpoint: %d", i+1)
+
+	}
+	if err != nil {
+		_ = srv.Stop()
+		wErr := errors.Join(ErrService, fmt.Errorf("failed to add endpoint: %w", err))
+		options.ErrCallback(wErr)
+		options.Logger.Errorf("authorization service failed to start: %s", err.Error())
+		return nil, wErr
+	}
 	options.Logger.Noticef("authorization service started: %s", nc.ConnectedUrl())
-	callout.service = srv
-	return srv, err
+	callout.Service = srv
+	return callout, err
+}
+
+func (c *AuthorizationService) Stop() error {
+	err := c.Service.Stop()
+	if c.workersCh != nil {
+		close(c.workersCh)
+		c.wg.Wait()
+	}
+	return err
 }
 
 // decode processes an incoming `micro.Request`, validates and decodes its payload,
@@ -191,7 +258,7 @@ func AuthorizationService(
 // The method ensures the payload contains a valid JWT Authorization Request with an
 // expected audience. Returns a boolean indicating encryption, the decoded
 // AuthorizationRequest if successful, and an error if any.
-func (c *Callout) decode(
+func (c *AuthorizationService) decode(
 	msg micro.Request,
 ) (bool, *jwt.AuthorizationRequest, error) {
 	isEncrypted := false
@@ -275,7 +342,7 @@ func (c *Callout) decode(
 // provided AuthorizationRequest and ResponseClaims. It signs the response or encodes
 // it using the provided signing key and encrypts it if required using the encryption
 // key. Returns an error if signing, encoding, encrypting, or responding fails.
-func (c *Callout) sendResponse(
+func (c *AuthorizationService) sendResponse(
 	msg micro.Request,
 	isEncrypted bool,
 	req *jwt.AuthorizationRequest,
@@ -315,9 +382,13 @@ func (c *Callout) sendResponse(
 	return nil
 }
 
+func (c *AuthorizationService) AsyncWorkerHandler(msg micro.Request) {
+	c.workersCh <- msg
+}
+
 // ServiceHandler processes an incoming micro.Request to decode, validate, and
 // authorize the payload, and sends a proper response.
-func (c *Callout) ServiceHandler(msg micro.Request) {
+func (c *AuthorizationService) ServiceHandler(msg micro.Request) {
 	start := time.Now()
 	isEncrypted, req, err := c.decode(msg)
 	if err != nil {

@@ -11,7 +11,7 @@ An AuthCallout is a service that generates an authorization for a user based on
 an external criteria. There are five aspects to a callout:
 
 1. Receiving an authorization request
-1. Decoding an authorization request
+1. Decoding and validating an authorization request
 1. Generating a user JWT based on the authorization request information
 1. Packaging an authorization response
 1. Sending the authorization response to the server
@@ -30,7 +30,7 @@ to easily horizontally scale the service to meet your cluster's demand.
 
 A callout simply issues a user JWT from a request from the server. So at it's
 most basic it is really just a request that receives an encoded
-[jwt.AuthorizationClaims](https://pkg.go.dev/github.com/nats-io/jwt/v2#AuthorizationRequestClaims)
+[jwt.AuthorizationRequestClaims](https://pkg.go.dev/github.com/nats-io/jwt/v2#AuthorizationRequestClaims)
 which contains a
 [jwt.AuthorizationRequest](https://pkg.go.dev/github.com/nats-io/jwt/v2#AuthorizationRequest).
 
@@ -38,15 +38,15 @@ The server may have transmitted the request encrypted if the callout
 configuration specifies an encryption public key.
 
 After possibly decrypting the request and decoding the
-`jwt.AuthorizationClaims`, some checks are performed on the request. if its
-valid, and use the data provided in the `jwt.AuthorizationRequest`. The request
-provides all the connection options specified by the client as well as TLS
-information, and as additional information from the server. Of importance is the
-`UserNKey`, which specifies the ID that must be assigned to the user if the
-authorization succeeds. Typically, clients will provide the necessary
-information in the `token` field.
+`jwt.AuthorizationRequestClaims`, some checks are performed on the request. if
+its valid, and use the data provided in the `jwt.AuthorizationRequest`. The
+request provides all the connection options specified by the client as well as
+TLS information, and as additional information from the server. Of importance is
+the `UserNKey`, which specifies the ID that must be assigned to the user if the
+authorization succeeds. Typically, clients encode additional information into
+the information in the `token` field.
 
-These limits and permissions are then translated into a
+Limits and permissions are then translated into a
 [jwt.UserClaims](https://pkg.go.dev/github.com/nats-io/jwt/v2#UserClaims) which
 describes the limits and permissions for the user within NATS.
 
@@ -55,17 +55,18 @@ Next, the callout service generates a
 which embeds a
 [jwt.AuthorizationResponse](https://pkg.go.dev/github.com/nats-io/jwt/v2#AuthorizationResponse)
 which either includes the generated JWT token (a string) or an error message. If
-the error message is set, this message will be printed by the NATS server, but
-NOT transmitted to the user. Reasoning for rejecting an user shouldn't be
-forwarded. Note that typically if the user is rejected, it is best practice to
-_drop_ the request after logging a message and have the server timeout the
-authorization.
+an error message is set, this message will be printed by the NATS server, but
+NOT transmitted to the user. Reasoning for rejecting a user shouldn't be
+forwarded. Note that typically if the user is rejected, the best practice is to
+_drop_ the request after logging a message. This will timeout the authorization
+request and reject the user. The timeout introduces a delay that to slow down
+users that are rejected.
 
 Finally, if the callout is using encryption, it must encrypt the encoded
-`jwt.AuthorizationResponseClaim` using the server's public key, and send it back
-to the server. The server in turn, validates the response and if all looks good,
-uses the generated user JWT as the permissions to assign to the user connecting
-it to NATS.
+`jwt.AuthorizationResponseClaim` using the server's public key, and sending the
+response back to the server. The server in turn, validates the response and if
+all looks good, uses the generated user JWT as the permissions to assign to the
+user connecting it to NATS.
 
 ## Simplest Callout
 
@@ -122,10 +123,11 @@ nc, _ := nats.Connect(nats.UserInfo("auth", "pwd"))
 
 // configure the authorization service with the connection, the function that 
 // generates users, and the key to use to issue the jwt.AuthorizationResponseClaims
-svc, err := AuthorizationService(serviceConn, Authorizer(authorizer), ResponseSignerKey(akp))
+svc, err := NewAuthorizationService(serviceConn, Authorizer(authorizer), ResponseSignerKey(akp))
 // done!
 ```
 
-
+A more complicated example using
+[delegated authentication can be found here](examples/delegated/README.md).
 
 ## More Examples TBD (look at the source Luke)

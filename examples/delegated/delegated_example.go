@@ -81,7 +81,7 @@ func main() {
 	defer nc.Close()
 
 	// start the service
-	_, err = callout.AuthorizationService(nc, callout.Authorizer(authorizer), callout.ResponseSignerKey(cKP))
+	_, err = callout.NewAuthorizationService(nc, callout.Authorizer(authorizer), callout.ResponseSignerKey(cKP))
 
 	// don't exit until sigterm
 	quit := make(chan os.Signal, 1)

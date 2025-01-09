@@ -19,3 +19,8 @@ tasks:
   fmt:
     cmds:
       - gofumpt -l -w .
+
+  bench:
+    cmds:
+      - go test -run ^\$ -bench=Benchmark -cpu 16
+      

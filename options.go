@@ -5,10 +5,16 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/nats-io/nkeys"
-
 	natsserver "github.com/nats-io/nats-server/v2/server"
+	"github.com/nats-io/nkeys"
 )
+
+func Name(n string) Option {
+	return func(o *Options) error {
+		o.Name = n
+		return nil
+	}
+}
 
 func Authorizer(fn AuthorizerFn) Option {
 	return func(o *Options) error {
@@ -27,6 +33,13 @@ func ErrCallback(fn ErrCallbackFn) Option {
 func Logger(l natsserver.Logger) Option {
 	return func(o *Options) error {
 		o.Logger = l
+		return nil
+	}
+}
+
+func AsyncWorkers(n int) Option {
+	return func(o *Options) error {
+		o.AsyncWorkers = n
 		return nil
 	}
 }
@@ -51,6 +64,13 @@ func ResponseSignerKey(kp nkeys.KeyPair) Option {
 func ResponseSigner(fn ResponseSignerFn) Option {
 	return func(o *Options) error {
 		o.ResponseSigner = fn
+		return nil
+	}
+}
+
+func ServiceEndpoints(n int) Option {
+	return func(o *Options) error {
+		o.ServiceEndpoints = n
 		return nil
 	}
 }

@@ -5,13 +5,12 @@ import (
 	"testing"
 	"time"
 
-	nslogger "github.com/nats-io/nats-server/v2/logger"
-	"github.com/nats-io/nats.go/micro"
-
 	"github.com/aricart/nst.go"
 	"github.com/nats-io/jwt/v2"
+	nslogger "github.com/nats-io/nats-server/v2/logger"
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/micro"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/suite"
 )
@@ -74,9 +73,9 @@ func (s *CalloutSuite) SetupServer(conf []byte) *nst.NatsServer {
 	return nst.NewNatsServer(s.T(), &natsserver.Options{
 		ConfigFile: s.dir.WriteFile("server.conf", conf),
 		Port:       -1,
-		Debug:      true,
-		Trace:      true,
-		NoLog:      false,
+		Debug:      false,
+		Trace:      false,
+		NoLog:      true,
 	})
 }
 
@@ -118,13 +117,14 @@ func (s *CalloutSuite) TestEncryptionMismatch() {
 		ErrCallback(func(err error) {
 			lastErr = err
 		}),
+		Logger(nst.NewNilLogger()),
 	}
 	// want to fail on mismatch
 	// if not required add it otherwise don't
 	if s.env.EncryptionKey() == nil {
 		opts = append(opts, EncryptionKey(kp))
 	}
-	svc, err := AuthorizationService(service, opts...)
+	svc, err := NewAuthorizationService(service, opts...)
 	s.NoError(err)
 	s.NotNil(svc)
 	defer svc.Stop()
@@ -141,10 +141,11 @@ func (s *CalloutSuite) TestAuthorizerIsRequired() {
 	service := s.getServiceConn()
 	defer service.Close()
 
-	_, err := AuthorizationService(service,
+	_, err := NewAuthorizationService(service,
 		ResponseSigner(func(req *jwt.AuthorizationResponseClaims) (string, error) {
 			return "", nil
-		}))
+		}),
+		Logger(nst.NewNilLogger()))
 	s.Error(err)
 	s.True(errors.Is(err, ErrAuthorizerRequired))
 }
@@ -154,7 +155,7 @@ func (s *CalloutSuite) TestSignerOrKeys() {
 	defer service.Close()
 	akp, _ := nkeys.CreateAccount()
 
-	_, err := AuthorizationService(service,
+	_, err := NewAuthorizationService(service,
 		Authorizer(func(req *jwt.AuthorizationRequest) (string, error) {
 			return "", nil
 		}),
@@ -162,6 +163,7 @@ func (s *CalloutSuite) TestSignerOrKeys() {
 			return "", nil
 		}),
 		ResponseSignerKey(akp))
+	Logger(nst.NewNilLogger())
 	s.Error(err)
 	s.True(errors.Is(err, ErrBadCalloutOption))
 }
@@ -173,11 +175,13 @@ func (s *CalloutSuite) TestResponseSignerMustBeSeed() {
 	pk, _ := akp.PublicKey()
 	pub, _ := nkeys.FromPublicKey(pk)
 
-	_, err := AuthorizationService(service,
+	_, err := NewAuthorizationService(service,
 		Authorizer(func(req *jwt.AuthorizationRequest) (string, error) {
 			return "", nil
 		}),
-		ResponseSignerKey(pub))
+		ResponseSignerKey(pub),
+		Logger(nst.NewNilLogger()))
+
 	s.Error(err)
 	s.True(errors.Is(err, ErrBadCalloutOption))
 }
@@ -187,11 +191,13 @@ func (s *CalloutSuite) TestResponseSignerMustBeAccount() {
 	defer service.Close()
 	ukp, _ := nkeys.CreateUser()
 
-	_, err := AuthorizationService(service,
+	_, err := NewAuthorizationService(service,
 		Authorizer(func(req *jwt.AuthorizationRequest) (string, error) {
 			return "", nil
 		}),
-		ResponseSignerKey(ukp))
+		ResponseSignerKey(ukp),
+		Logger(nst.NewNilLogger()))
+
 	s.Error(err)
 	s.True(errors.Is(err, ErrBadCalloutOption))
 }
@@ -204,12 +210,13 @@ func (s *CalloutSuite) RestResponseSignerIssuerMustBeAccount() {
 	ukp, _ := nkeys.CreateUser()
 	pk, _ := ukp.PublicKey()
 
-	_, err := AuthorizationService(service,
+	_, err := NewAuthorizationService(service,
 		Authorizer(func(req *jwt.AuthorizationRequest) (string, error) {
 			return "", nil
 		}),
 		ResponseSignerKey(akp),
-		ResponseSignerIssuer(pk))
+		ResponseSignerIssuer(pk),
+		Logger(nst.NewNilLogger()))
 	s.True(errors.Is(err, ErrBadCalloutOption))
 }
 
@@ -221,12 +228,13 @@ func (s *CalloutSuite) TestResponseSignerIssuerCouldBeSeed() {
 	sk, _ := nkeys.CreateAccount()
 	sks, _ := sk.Seed()
 
-	_, err := AuthorizationService(service,
+	_, err := NewAuthorizationService(service,
 		Authorizer(func(req *jwt.AuthorizationRequest) (string, error) {
 			return "", nil
 		}),
 		ResponseSignerKey(akp),
-		ResponseSignerIssuer(string(sks)))
+		ResponseSignerIssuer(string(sks)),
+		Logger(nst.NewNilLogger()))
 	s.NoError(err)
 }
 
@@ -238,12 +246,13 @@ func (s *CalloutSuite) TestResponseSignerIssuer() {
 	sk, _ := nkeys.CreateAccount()
 	pk, _ := sk.PublicKey()
 
-	_, err := AuthorizationService(service,
+	_, err := NewAuthorizationService(service,
 		Authorizer(func(req *jwt.AuthorizationRequest) (string, error) {
 			return "", nil
 		}),
 		ResponseSignerKey(akp),
-		ResponseSignerIssuer(pk))
+		ResponseSignerIssuer(pk),
+		Logger(nst.NewNilLogger()))
 	s.NoError(err)
 }
 
@@ -254,12 +263,13 @@ func (s *CalloutSuite) TestResponseSignerIssuerBadType() {
 	ukp, _ := nkeys.CreateUser()
 	upk, _ := ukp.PublicKey()
 
-	_, err := AuthorizationService(service,
+	_, err := NewAuthorizationService(service,
 		Authorizer(func(req *jwt.AuthorizationRequest) (string, error) {
 			return "", nil
 		}),
 		ResponseSignerKey(akp),
-		ResponseSignerIssuer(upk))
+		ResponseSignerIssuer(upk),
+		Logger(nst.NewNilLogger()))
 	s.Error(err)
 	s.True(errors.Is(err, ErrBadCalloutOption))
 }
@@ -269,12 +279,13 @@ func (s *CalloutSuite) TestEncryptKey() {
 	defer service.Close()
 	akp, _ := nkeys.CreateAccount()
 
-	_, err := AuthorizationService(service,
+	_, err := NewAuthorizationService(service,
 		Authorizer(func(req *jwt.AuthorizationRequest) (string, error) {
 			return "", nil
 		}),
 		ResponseSignerKey(akp),
 		EncryptionKey(akp),
+		Logger(nst.NewNilLogger()),
 	)
 	s.Error(err)
 	s.True(errors.Is(err, ErrBadCalloutOption))
@@ -287,12 +298,13 @@ func (s *CalloutSuite) TestEncryptKeyMustBeSeed() {
 	pk, _ := akp.PublicKey()
 	pub, _ := nkeys.FromPublicKey(pk)
 
-	_, err := AuthorizationService(service,
+	_, err := NewAuthorizationService(service,
 		Authorizer(func(req *jwt.AuthorizationRequest) (string, error) {
 			return "", nil
 		}),
 		ResponseSignerKey(akp),
 		EncryptionKey(pub),
+		Logger(nst.NewNilLogger()),
 	)
 	s.Error(err)
 	s.True(errors.Is(err, ErrBadCalloutOption))
@@ -314,8 +326,8 @@ func (s *CalloutSuite) TestSetupOK() {
 	info := nst.ClientInfo(s.T(), serviceConn)
 	s.Equal(s.env.ServiceAudience(), info.Data.Account)
 
-	opts := append(s.env.ServiceOpts(), Authorizer(authorizer))
-	svc, err := AuthorizationService(serviceConn, opts...)
+	opts := append(s.env.ServiceOpts(), Authorizer(authorizer), Logger(nst.NewNilLogger()))
+	svc, err := NewAuthorizationService(serviceConn, opts...)
 	s.NoError(err)
 	s.NotNil(svc)
 	defer func() {
@@ -355,8 +367,8 @@ func (s *CalloutSuite) TestAbortRequest() {
 	info := nst.ClientInfo(s.T(), serviceConn)
 	s.Equal(s.env.ServiceAudience(), info.Data.Account)
 
-	opts := append(s.env.ServiceOpts(), Authorizer(authorizer))
-	svc, err := AuthorizationService(serviceConn, opts...)
+	opts := append(s.env.ServiceOpts(), Authorizer(authorizer), Logger(nst.NewNilLogger()))
+	svc, err := NewAuthorizationService(serviceConn, opts...)
 	s.NoError(err)
 	s.NotNil(svc)
 	defer func() {
@@ -422,8 +434,9 @@ func (s *CalloutSuite) TestBadGenerate() {
 		InvalidUser(func(_ string, err error) {
 			lastErr = err
 		}),
+		Logger(nst.NewNilLogger()),
 	)
-	svc, err := AuthorizationService(serviceConn, opts...)
+	svc, err := NewAuthorizationService(serviceConn, opts...)
 	s.NoError(err)
 	s.NotNil(svc)
 	defer func() {
@@ -473,8 +486,9 @@ func (s *CalloutSuite) TestBadPermissions() {
 		InvalidUser(func(_ string, err error) {
 			lastErr = err
 		}),
+		Logger(nst.NewNilLogger()),
 	)
-	svc, err := AuthorizationService(serviceConn, opts...)
+	svc, err := NewAuthorizationService(serviceConn, opts...)
 	s.NoError(err)
 	s.NotNil(svc)
 	defer func() {
@@ -510,13 +524,14 @@ func (s *CalloutSuite) TestBadEncryption() {
 		ErrCallback(func(err error) {
 			lastErr = err
 		}),
+		Logger(nst.NewNilLogger()),
 	)
 
 	options, err := processOptions(opts...)
 	s.NoError(err)
 	options.Logger = nslogger.NewStdLogger(true, true, true, true, true)
 	options.Authorizer = authorizer
-	callout := &Callout{opts: options}
+	callout := &AuthorizationService{opts: options}
 
 	handler := callout.ServiceHandler
 	// empty payload
