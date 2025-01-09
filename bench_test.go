@@ -1,6 +1,7 @@
 package callout
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -8,7 +9,6 @@ import (
 	"github.com/nats-io/jwt/v2"
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/micro"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,7 +17,7 @@ type BenchSuite struct {
 	dir         *nst.TestDir
 	env         CalloutEnv
 	ns          *nst.NatsServer
-	service     []micro.Service
+	services    []*AuthorizationService
 	serviceConn []*nats.Conn
 }
 
@@ -25,11 +25,36 @@ func (bs *BenchSuite) Cleanup() {
 	for _, c := range bs.serviceConn {
 		c.Close()
 	}
-	for _, s := range bs.service {
+	for _, s := range bs.services {
 		_ = s.Stop()
 	}
 	bs.ns.Shutdown()
 	bs.dir.Cleanup()
+}
+
+type Samples struct {
+	tb       *testing.B
+	start    time.Time
+	duration time.Duration
+	avg      time.Duration
+	max      float64
+}
+
+func NewSamples(tb *testing.B) *Samples {
+	return &Samples{
+		tb:    tb,
+		start: time.Now(),
+	}
+}
+
+func (b *Samples) Done() {
+	b.duration = time.Since(b.start)
+	b.avg = b.duration / time.Duration(b.tb.N)
+	b.max = float64(time.Second / b.avg)
+}
+
+func (b *Samples) String() string {
+	return fmt.Sprintf("%d ops - total time: %v avg: %v max clients: ~%v", b.tb.N, b.duration, b.avg, b.max)
 }
 
 func Setup(tb testing.TB, opts ...Option) *BenchSuite {
@@ -75,13 +100,13 @@ func (bs *BenchSuite) AddService(tb testing.TB, opts ...Option) {
 		Logger(nst.NewNilLogger()),
 	)
 
-	svc, err := AuthorizationService(nc, opts...)
+	svc, err := NewAuthorizationService(nc, opts...)
 	require.NoError(tb, err)
 	require.NotNil(tb, svc)
-	bs.service = append(bs.service, svc)
+	bs.services = append(bs.services, svc)
 }
 
-func Benchmark_PerfServiceHandler(b *testing.B) {
+func Benchmark_ServiceHandler(b *testing.B) {
 	bs := Setup(b)
 	defer bs.Cleanup()
 
@@ -89,6 +114,8 @@ func Benchmark_PerfServiceHandler(b *testing.B) {
 	opts = append(opts, bs.env.UserOpts()...)
 	b.ResetTimer()
 
+	sample := NewSamples(b)
+
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			nc, err := bs.ns.MaybeConnect(opts...)
@@ -96,16 +123,21 @@ func Benchmark_PerfServiceHandler(b *testing.B) {
 			require.NotNil(b, nc)
 		}
 	})
+
+	sample.Done()
+	b.Logf("%v", sample)
 }
 
-func Benchmark_PerfAsyncServiceHandler(b *testing.B) {
-	bs := Setup(b, AsyncHandler())
+func Benchmark_MultipleServiceEndpoints(b *testing.B) {
+	bs := Setup(b, ServiceEndpoints(10))
 	defer bs.Cleanup()
 
 	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
 	opts = append(opts, bs.env.UserOpts()...)
 	b.ResetTimer()
 
+	sample := NewSamples(b)
+
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			nc, err := bs.ns.MaybeConnect(opts...)
@@ -113,15 +145,22 @@ func Benchmark_PerfAsyncServiceHandler(b *testing.B) {
 			require.NotNil(b, nc)
 		}
 	})
+
+	sample.Done()
+	b.Logf("%v", sample)
 }
 
-func Benchmark_PerfManyWorkers(b *testing.B) {
-	bs := Setup(b, ServiceWorkers(10))
+func Benchmark_AsyncWorkers(b *testing.B) {
+	bs := Setup(b, AsyncWorkers(10))
+	for i := 0; i < 10; i++ {
+		bs.AddService(b)
+	}
 	defer bs.Cleanup()
 
 	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
 	opts = append(opts, bs.env.UserOpts()...)
 	b.ResetTimer()
+	sample := NewSamples(b)
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
@@ -130,9 +169,12 @@ func Benchmark_PerfManyWorkers(b *testing.B) {
 			require.NotNil(b, nc)
 		}
 	})
+
+	sample.Done()
+	b.Logf("%v", sample)
 }
 
-func Benchmark_PerfManyServices(b *testing.B) {
+func Benchmark_MultipleServices(b *testing.B) {
 	bs := Setup(b)
 	for i := 0; i < 10; i++ {
 		bs.AddService(b)
@@ -142,6 +184,7 @@ func Benchmark_PerfManyServices(b *testing.B) {
 	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
 	opts = append(opts, bs.env.UserOpts()...)
 	b.ResetTimer()
+	sample := NewSamples(b)
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
@@ -150,4 +193,7 @@ func Benchmark_PerfManyServices(b *testing.B) {
 			require.NotNil(b, nc)
 		}
 	})
+
+	sample.Done()
+	b.Logf("%v", sample)
 }

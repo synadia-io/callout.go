@@ -9,6 +9,13 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
+func Name(n string) Option {
+	return func(o *Options) error {
+		o.Name = n
+		return nil
+	}
+}
+
 func Authorizer(fn AuthorizerFn) Option {
 	return func(o *Options) error {
 		o.Authorizer = fn
@@ -30,9 +37,9 @@ func Logger(l natsserver.Logger) Option {
 	}
 }
 
-func AsyncHandler() Option {
+func AsyncWorkers(n int) Option {
 	return func(o *Options) error {
-		o.AsyncHandler = true
+		o.AsyncWorkers = n
 		return nil
 	}
 }
@@ -61,9 +68,9 @@ func ResponseSigner(fn ResponseSignerFn) Option {
 	}
 }
 
-func ServiceWorkers(n int) Option {
+func ServiceEndpoints(n int) Option {
 	return func(o *Options) error {
-		o.ServiceWorkers = n
+		o.ServiceEndpoints = n
 		return nil
 	}
 }
