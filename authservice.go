@@ -15,6 +15,8 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
+// RequestContextError represents an error in the context of handling a user
+// request, including the user ID and the cause.
 type RequestContextError struct {
 	UserID string
 	Reason error
@@ -32,16 +34,25 @@ func (r RequestContextError) User() string {
 	return r.UserID
 }
 
-// ErrAbortRequest is an Error that signals for operation to abort.
-// Aborted operations don't respond to the callout request. Reason for
-// aborting is to allow the NATS server to delay the connection error response
-// and thus delay any possible denial-of-service attack.
 var (
-	ErrAbortRequest       = errors.New("abort request")
+	// ErrAbortRequest is an Error that signals for operation to abort.
+	// Aborted operations don't respond to the callout request. Reason for
+	// aborting is to allow the NATS server to delay the connection error
+	// response and thus delay any possible denial-of-service attack.
+	ErrAbortRequest = errors.New("abort request")
+	// ErrAuthorizerRequired indicates that an authorizer must be provided for
+	// the operation to proceed.
 	ErrAuthorizerRequired = errors.New("authorizer is required")
-	ErrBadCalloutOption   = errors.New("bad options")
-	ErrService            = errors.New("service error")
-	ErrRejectedAuth       = errors.New("rejected authorization request")
+	// ErrBadCalloutOption indicates an invalid or incompatible configuration
+	// option was provided to NewAuthorizationService.
+	ErrBadCalloutOption = errors.New("bad options")
+	// ErrService represents a general service error that may occur during
+	// operation execution.
+	ErrService = errors.New("service error")
+	// ErrRejectedAuth indicates that an authorization request was explicitly
+	// rejected, typically due to invalid credentials or other authorization
+	// failures.
+	ErrRejectedAuth = errors.New("rejected authorization request")
 )
 
 const (
@@ -54,17 +65,16 @@ const (
 type AuthorizerFn func(req *jwt.AuthorizationRequest) (string, error)
 
 // ErrCallbackFn this is an optional callback that gets invoked whenever the
-// AuthorizerFn
-// returns an error, this is useful for tests
+// AuthorizerFn returns an error, this is useful for tests
 type ErrCallbackFn func(err error)
 
-// InvalidUserCallbackFn is a function type invoked when a user JWT validation fails,
-// providing the JWT and the error details.
+// InvalidUserCallbackFn is a function type invoked when a user JWT validation
+// fails, providing the JWT and the error details.
 type InvalidUserCallbackFn func(jwt string, err error)
 
-// ResponseSignerFn allows externalizing the signing to a different workflow
-// where the callout doesn't directly sign the jwt.AuthorizationResponseClaims
-// but instead forwards the request to some other mechanism
+// ResponseSignerFn allows externalizing the signing to a different workflow where
+// the callout doesn't directly sign the jwt.AuthorizationResponseClaims but
+// instead forwards the request to some other mechanism
 type ResponseSignerFn func(*jwt.AuthorizationResponseClaims) (string, error)
 
 // Options defines a configuration struct for handling authorization and signing of
@@ -73,7 +83,8 @@ type Options struct {
 	// Name for the AuthorizationService cannot have spaces, etc, as this is
 	// the name that the actual micro.Service will use.
 	Name string
-	// Authorizer function that processes authorization request and issues user JWT
+	// Authorizer function that processes authorization request and issues user
+	// JWT
 	Authorizer AuthorizerFn
 	// ResponseSigner is a function that performs the signing of the
 	// jwt.AuthorizationResponseClaim
@@ -82,24 +93,24 @@ type Options struct {
 	// jwt.AuthorizationResponseClaim
 	ResponseSignerKey nkeys.KeyPair
 	// ResponseSigner is the key that ID of the account issuing the
-	// jwt.AuthorizationResponseClaim
-	// if not set, ResponseSigner is the account
+	// jwt.AuthorizationResponseClaim if not set, ResponseSigner is the account
 	ResponseSignerIssuer string
 	// EncryptionKey is an optional configuration that must be provided if the
 	// callout is configured to use encryption.
 	EncryptionKey nkeys.KeyPair
 	// Logger for the service process
 	Logger natsserver.Logger
-	// InvalidUser when set user JWTs are validated if error
-	// notified via the callback
+	// InvalidUser when set user JWTs are validated if error notified via the
+	// callback
 	InvalidUser InvalidUserCallbackFn
-
+	// ErrCallback is an optional callback invoked whenever AuthorizerFn
+	// returns an error, useful for handling test errors.
 	ErrCallback ErrCallbackFn
-
+	// ServiceEndpoints sets the number of endpoints available for the service
+	// to handle requests.
 	ServiceEndpoints int
-
-	AsyncHandler bool
-
+	// AsyncWorkers specifies the number of workers used for asynchronous task
+	// processing.
 	AsyncWorkers int
 }
 
@@ -116,6 +127,11 @@ func processOptions(opts ...Option) (*Options, error) {
 	return options, nil
 }
 
+// AuthorizationService is a service that handles user authorization requests and
+// processes JWT-based authentication.  It uses options to specify configuration
+// such as authorizers, response signers, encryption keys, and logging.  The
+// service can operate with synchronous or asynchronous request handling using
+// worker channels.
 type AuthorizationService struct {
 	opts      *Options
 	Service   micro.Service
@@ -123,9 +139,13 @@ type AuthorizationService struct {
 	wg        sync.WaitGroup
 }
 
-// NewAuthorizationService starts and configures an authorization microservice using
-// NATS messaging system. Returns the created microservice instance and error
-// if any issue occurs during setup.
+// NewAuthorizationService initializes and returns a new instance of
+// AuthorizationService with the provided options.  It sets up the service,
+// including logging, error handling, and request-processing functionality.
+//
+//	Errors may occur during initialization due to missing or incompatible options.
+//
+//	Returns an AuthorizationService instance and an error, if any occurred.
 func NewAuthorizationService(
 	nc *nats.Conn, opts ...Option,
 ) (*AuthorizationService, error) {
@@ -243,6 +263,9 @@ func NewAuthorizationService(
 	return callout, err
 }
 
+// Stop gracefully shuts down the AuthorizationService by stopping its underlying
+// service and closing worker channels.  Note that the connection provided to the
+// service when created is not closed as it is not created by the service.
 func (c *AuthorizationService) Stop() error {
 	err := c.Service.Stop()
 	if c.workersCh != nil {
@@ -252,12 +275,8 @@ func (c *AuthorizationService) Stop() error {
 	return err
 }
 
-// decode processes an incoming `micro.Request`, validates and decodes its payload,
-// and detects if it is encrypted. It checks configuration mismatches for encryption
-// and decrypts the data if necessary using the provided encryption key.
-// The method ensures the payload contains a valid JWT Authorization Request with an
-// expected audience. Returns a boolean indicating encryption, the decoded
-// AuthorizationRequest if successful, and an error if any.
+// decode processes the incoming micro.Request, verifying and decoding the payload,
+// and ensuring its validity.
 func (c *AuthorizationService) decode(
 	msg micro.Request,
 ) (bool, *jwt.AuthorizationRequest, error) {
@@ -338,10 +357,9 @@ func (c *AuthorizationService) decode(
 	return isEncrypted, &arc.AuthorizationRequest, nil
 }
 
-// sendResponse formats and sends a response or error to a micro.Request based on
-// provided AuthorizationRequest and ResponseClaims. It signs the response or encodes
-// it using the provided signing key and encrypts it if required using the encryption
-// key. Returns an error if signing, encoding, encrypting, or responding fails.
+// sendResponse handles encoding, signing, encryption, and transmission of the
+// authorization response to the client.  It processes both successful and error
+// responses, encrypting the output if required, and sends it via msg.
 func (c *AuthorizationService) sendResponse(
 	msg micro.Request,
 	isEncrypted bool,
@@ -382,12 +400,15 @@ func (c *AuthorizationService) sendResponse(
 	return nil
 }
 
+// AsyncWorkerHandler enqueues an incoming micro.Request to the workers channel for
+// asynchronous processing.
 func (c *AuthorizationService) AsyncWorkerHandler(msg micro.Request) {
 	c.workersCh <- msg
 }
 
-// ServiceHandler processes an incoming micro.Request to decode, validate, and
-// authorize the payload, and sends a proper response.
+// ServiceHandler processes incoming authorization micro.Request messages, decodes
+// and validates them, and generates appropriate responses or errors based on the
+// authorization outcome.
 func (c *AuthorizationService) ServiceHandler(msg micro.Request) {
 	start := time.Now()
 	isEncrypted, req, err := c.decode(msg)
@@ -420,8 +441,8 @@ func (c *AuthorizationService) ServiceHandler(msg micro.Request) {
 	// authorize
 	user, err := c.opts.Authorizer(req)
 	resp.Jwt = user
-	// if we don't have a user nor an error - callout failed to do the right thing,
-	// put an error
+	// if we don't have a user nor an error - callout failed to do the right
+	// thing, put an error
 	if user == "" && err == nil {
 		wErr := errors.Join(RequestContextError{
 			Reason: fmt.Errorf(
@@ -448,9 +469,9 @@ func (c *AuthorizationService) ServiceHandler(msg micro.Request) {
 	}
 
 	if user != "" && c.opts.InvalidUser != nil {
-		// run some validation checks to help debugging service - these don't stop
-		// the service just simply help getting an audit, connection will fail on
-		// the server with Authorization Error
+		// run some validation checks to help debugging service - these
+		// don't stop the service just simply help getting an audit,
+		// connection will fail on the server with Authorization Error
 		uc, err := jwt.DecodeUserClaims(user)
 		if err != nil {
 			c.opts.InvalidUser(user, err)

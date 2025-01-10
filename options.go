@@ -9,6 +9,8 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
+// Name sets the name of the service. This value must not contain spaces or dots of
+// it may be rejected by the micro.Service backing the AuthorizationService.
 func Name(n string) Option {
 	return func(o *Options) error {
 		o.Name = n
@@ -16,6 +18,8 @@ func Name(n string) Option {
 	}
 }
 
+// Authorizer sets a custom authorization function (AuthorizerFn) for signing
+// and handling user JWTs in the service configuration.
 func Authorizer(fn AuthorizerFn) Option {
 	return func(o *Options) error {
 		o.Authorizer = fn
@@ -23,6 +27,8 @@ func Authorizer(fn AuthorizerFn) Option {
 	}
 }
 
+// ErrCallback sets a callback function to handle errors returned by the
+// AuthorizerFn, useful for logging or testing.
 func ErrCallback(fn ErrCallbackFn) Option {
 	return func(o *Options) error {
 		o.ErrCallback = fn
@@ -30,6 +36,7 @@ func ErrCallback(fn ErrCallbackFn) Option {
 	}
 }
 
+// Logger sets the custom logger for the AuthorizationService.
 func Logger(l natsserver.Logger) Option {
 	return func(o *Options) error {
 		o.Logger = l
@@ -37,6 +44,7 @@ func Logger(l natsserver.Logger) Option {
 	}
 }
 
+// AsyncWorkers sets the number of asynchronous workers that will be used the AuthorizationService.
 func AsyncWorkers(n int) Option {
 	return func(o *Options) error {
 		o.AsyncWorkers = n
@@ -44,6 +52,9 @@ func AsyncWorkers(n int) Option {
 	}
 }
 
+// ResponseSignerKey sets the response signer key to be used for signing
+// authorization responses in the authorization service. The key pair must be an
+// account private key, otherwise an error is returned.
 func ResponseSignerKey(kp nkeys.KeyPair) Option {
 	return func(o *Options) error {
 		seed, err := kp.Seed()
@@ -61,6 +72,8 @@ func ResponseSignerKey(kp nkeys.KeyPair) Option {
 	}
 }
 
+// ResponseSigner sets a custom ResponseSignerFn to handle the signing of
+// AuthorizationResponseClaims in the service options.
 func ResponseSigner(fn ResponseSignerFn) Option {
 	return func(o *Options) error {
 		o.ResponseSigner = fn
@@ -68,6 +81,8 @@ func ResponseSigner(fn ResponseSignerFn) Option {
 	}
 }
 
+// ServiceEndpoints configures the number of service endpoints for the
+// AuthorizationService.
 func ServiceEndpoints(n int) Option {
 	return func(o *Options) error {
 		o.ServiceEndpoints = n
@@ -75,6 +90,9 @@ func ServiceEndpoints(n int) Option {
 	}
 }
 
+// ResponseSignerIssuer configures the issuer for the response signer using an
+// account public key or seed.  Returns an error if the provided key is invalid or
+// not associated with an account.
 func ResponseSignerIssuer(pub string) Option {
 	return func(o *Options) error {
 		if strings.HasPrefix(pub, "SA") {
@@ -99,6 +117,8 @@ func ResponseSignerIssuer(pub string) Option {
 	}
 }
 
+// InvalidUser configures a callback function invoked when a user JWT validation
+// fails, passing the JWT and error details.
 func InvalidUser(cb InvalidUserCallbackFn) Option {
 	return func(o *Options) error {
 		o.InvalidUser = cb
@@ -106,6 +126,8 @@ func InvalidUser(cb InvalidUserCallbackFn) Option {
 	}
 }
 
+// EncryptionKey sets the encryption key for the service, requiring it to be a
+// curve seed.  Returns an error for invalid keys.
 func EncryptionKey(kp nkeys.KeyPair) Option {
 	return func(o *Options) error {
 		o.EncryptionKey = kp

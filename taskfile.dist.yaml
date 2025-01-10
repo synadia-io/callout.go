@@ -12,7 +12,9 @@ tasks:
     cmds:
       - rm -f ./coverage.out
       - go test -coverpkg=./... -coverprofile=./coverage.out ./...
-      - go tool cover -html=./coverage.out
+      - mv coverage.out _coverage.out
+      - cat _coverage.out | grep -v "callout/examples/" > coverage.out
+      - rm _coverage.out
   lint:
     cmds:
       - golangci-lint run
