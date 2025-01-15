@@ -9,8 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"callout"
-
+	"github.com/aricart/callout.go"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
