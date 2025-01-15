@@ -57,6 +57,10 @@ func (b *Samples) String() string {
 	return fmt.Sprintf("%d ops - total time: %v avg: %v max clients: ~%v", b.tb.N, b.duration, b.avg, b.max)
 }
 
+func (b *Samples) Print(format string) {
+	b.tb.Logf(format, b)
+}
+
 func Setup(tb testing.TB, opts ...Option) *BenchSuite {
 	dir := nst.NewTestDir(tb, "", "")
 	env := NewBasicEnv(tb, dir)
@@ -106,7 +110,7 @@ func (bs *BenchSuite) AddService(tb testing.TB, opts ...Option) {
 	bs.services = append(bs.services, svc)
 }
 
-func Benchmark_ServiceHandler(b *testing.B) {
+func Benchmark_Auth(b *testing.B) {
 	bs := Setup(b)
 	defer bs.Cleanup()
 
@@ -114,21 +118,44 @@ func Benchmark_ServiceHandler(b *testing.B) {
 	opts = append(opts, bs.env.UserOpts()...)
 	b.ResetTimer()
 
+	ok := 0
 	sample := NewSamples(b)
-
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			nc, err := bs.ns.MaybeConnect(opts...)
-			require.NoError(b, err)
-			require.NotNil(b, nc)
+	for i := 0; i < b.N; i++ {
+		_, err := bs.ns.MaybeConnect(opts...)
+		if err == nil {
+			ok++
 		}
-	})
+	}
 
 	sample.Done()
-	b.Logf("%v", sample)
+	sample.Print("%v")
+	b.Logf("OK %v", ok)
 }
 
-func Benchmark_MultipleServiceEndpoints(b *testing.B) {
+func Benchmark_AuthParallel(b *testing.B) {
+	bs := Setup(b)
+	defer bs.Cleanup()
+
+	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
+	opts = append(opts, bs.env.UserOpts()...)
+	b.ResetTimer()
+
+	ok := 0
+	sample := NewSamples(b)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_, err := bs.ns.MaybeConnect(opts...)
+			if err == nil {
+				ok++
+			}
+		}
+	})
+	sample.Done()
+	sample.Print("%v")
+	b.Logf("OK %v", ok)
+}
+
+func Benchmark_AuthMultipleServiceEndpoints(b *testing.B) {
 	bs := Setup(b, ServiceEndpoints(10))
 	defer bs.Cleanup()
 
@@ -137,20 +164,22 @@ func Benchmark_MultipleServiceEndpoints(b *testing.B) {
 	b.ResetTimer()
 
 	sample := NewSamples(b)
-
+	ok := 0
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			nc, err := bs.ns.MaybeConnect(opts...)
-			require.NoError(b, err)
-			require.NotNil(b, nc)
+			_, err := bs.ns.MaybeConnect(opts...)
+			if err == nil {
+				ok++
+			}
 		}
 	})
 
 	sample.Done()
-	b.Logf("%v", sample)
+	sample.Print("%v")
+	b.Logf("OK %v", ok)
 }
 
-func Benchmark_AsyncWorkers(b *testing.B) {
+func Benchmark_AuthAsyncWorkers(b *testing.B) {
 	bs := Setup(b, AsyncWorkers(10))
 	for i := 0; i < 10; i++ {
 		bs.AddService(b)
@@ -171,10 +200,10 @@ func Benchmark_AsyncWorkers(b *testing.B) {
 	})
 
 	sample.Done()
-	b.Logf("%v", sample)
+	sample.Print("%v")
 }
 
-func Benchmark_MultipleServices(b *testing.B) {
+func Benchmark_AuthMultipleServices(b *testing.B) {
 	bs := Setup(b)
 	for i := 0; i < 10; i++ {
 		bs.AddService(b)
@@ -195,5 +224,5 @@ func Benchmark_MultipleServices(b *testing.B) {
 	})
 
 	sample.Done()
-	b.Logf("%v", sample)
+	sample.Print("%v")
 }
