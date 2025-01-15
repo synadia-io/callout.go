@@ -1,4 +1,4 @@
-module callout
+module github.com/aricart/callout.go
 
 go 1.22
 
