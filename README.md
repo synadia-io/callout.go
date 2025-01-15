@@ -72,7 +72,7 @@ user connecting it to NATS.
 
 This example uses the following server configuration:
 
-```
+```conf
 authorization:{
     users:[
         { user: auth, password: pwd }
@@ -127,7 +127,50 @@ svc, err := NewAuthorizationService(serviceConn, Authorizer(authorizer), Respons
 // done!
 ```
 
+#### Adding Encryption
+
+AuthorizatinRequests can be encrypted. Encrypting ensures that requests are
+readable only to the owner of the specified encryption key, and that responses
+are only readable to the server that sent the request.
+
+Here's the same server configuration, but this time enabling encryption:
+
+```conf
+authorization:{
+    users:[
+        { user: auth, password: pwd }
+    ]
+    auth_callout:{
+        auth_users:[auth]
+        issuer: AAB35RZ7HJSICG7D4IGPYO3CTQPWWGULJXZYD45QAWUKTXJYDI6EO7MV
+        # Specifying the public curve key, the server will send authorization
+        # requests encrypted so that the public key specified can read them.
+        # Likewise the server will expect the response to be encrypted on the
+        # public key it specifies in the request.
+        xkey: XBCW4J63ZDLH54GKXJLBJQOWXEWPIYXY23HBMWL5LX6U24FW3C6U2UUL
+    }
+}
+```
+
+On the callout side, the only additional requirement is to specify the option
+`EncryptionKey`:
+
+```go
+xkey, _ := nkeys.CreateCurveKeys()
+svc, err := NewAuthorizationService(serviceConn,
+    Authorizer(authorizer), ResponseSignerKey(akp), EncryptionKey(xkey))
+```
+
+The library will ensure that both the server and service are using encryption,
+and that the keys assets from the request are encrypted by the sending server,
+and will encrypt the AuthorizationResponse.
+
+### Delegated Authentication
+
+Delegated Authentication increases the complixity a bit more. When using
+
 A more complicated example using
 [delegated authentication can be found here](examples/delegated/README.md).
+
 
 ## More Examples TBD (look at the source Luke)

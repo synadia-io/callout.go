@@ -10,7 +10,6 @@ import (
 	nslogger "github.com/nats-io/nats-server/v2/logger"
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/micro"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/suite"
 )
@@ -535,22 +534,22 @@ func (s *CalloutSuite) TestBadEncryption() {
 
 	handler := callout.ServiceHandler
 	// empty payload
-	handler(AdaptMsg(&nats.Msg{}))
+	handler(NewServiceMsgAdapter(&nats.Msg{}))
 	s.Error(lastErr)
 	errors.Is(lastErr, errors.New("bad request: empty payload"))
 
 	// not enough characters
-	handler(AdaptMsg(&nats.Msg{Data: []byte("123")}))
+	handler(NewServiceMsgAdapter(&nats.Msg{Data: []byte("123")}))
 	s.Error(lastErr)
 	errors.Is(lastErr, errors.New("bad request: payload too short: 3"))
 
 	// encryption error
-	handler(AdaptMsg(&nats.Msg{Data: []byte("this is not valid")}))
+	handler(NewServiceMsgAdapter(&nats.Msg{Data: []byte("this is not valid")}))
 	s.Error(lastErr)
 	errors.Is(lastErr, errors.New("bad request: error decrypting message"))
 
 	// encryption error
-	handler(AdaptMsg(&nats.Msg{Data: []byte("eyJ0junk")}))
+	handler(NewServiceMsgAdapter(&nats.Msg{Data: []byte("eyJ0junk")}))
 	s.Error(lastErr)
 	errors.Is(lastErr, errors.New("bad request: error decoding auth request"))
 
@@ -579,7 +578,7 @@ func (s *CalloutSuite) TestBadEncryption() {
 	rc.Server = jwt.ServerID{ID: sid2}
 	token, err := rc.Encode(skp)
 	s.NoError(err)
-	handler(AdaptMsg(&nats.Msg{Data: []byte(token)}))
+	handler(NewServiceMsgAdapter(&nats.Msg{Data: []byte(token)}))
 	s.Error(lastErr)
 	errors.Is(lastErr, errors.New("bad request: issuers don't match"))
 
@@ -590,46 +589,115 @@ func (s *CalloutSuite) TestBadEncryption() {
 	rc.Server = jwt.ServerID{ID: sid}
 	token, err = rc.Encode(skp)
 	s.NoError(err)
-	handler(AdaptMsg(&nats.Msg{Data: []byte(token)}))
+	handler(NewServiceMsgAdapter(&nats.Msg{Data: []byte(token)}))
 	s.Error(lastErr)
 	errors.Is(lastErr, errors.New("bad request: unexpected audience"))
 }
 
-type ServiceMsgAdapter struct {
-	msg *nats.Msg
+func (s *CalloutSuite) TestAsyncWorkers() {
+	// here's a simple AuthorizerFn function that authorizes all users
+	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
+		uc := jwt.NewUserClaims(req.UserNkey)
+		uc.Audience = s.env.Audience()
+		uc.Pub.Allow.Add(nst.UserInfoSubj)
+		uc.Sub.Allow.Add("_INBOX.>")
+		uc.Expires = time.Now().Unix() + 90
+		return s.env.EncodeUser("A", uc)
+	}
+
+	serviceConn := s.getServiceConn()
+	defer serviceConn.Close()
+	info := nst.ClientInfo(s.T(), serviceConn)
+	s.Equal(s.env.ServiceAudience(), info.Data.Account)
+
+	opts := append(s.env.ServiceOpts(),
+		Authorizer(authorizer),
+		Logger(nst.NewNilLogger()),
+		AsyncWorkers(5))
+	svc, err := NewAuthorizationService(serviceConn, opts...)
+	s.NoError(err)
+	s.NotNil(svc)
+	defer func() {
+		_ = svc.Stop()
+	}()
+
+	c, err := s.userConn(nats.UserInfo("hello", "world"))
+	s.NoError(err)
+	s.NotNil(c)
+	info = nst.ClientInfo(s.T(), c)
+	s.Contains(info.Data.Permissions.Pub.Allow, nst.UserInfoSubj)
+	s.Contains(info.Data.Permissions.Sub.Allow, "_INBOX.>")
 }
 
-func AdaptMsg(m *nats.Msg) *ServiceMsgAdapter {
-	return &ServiceMsgAdapter{m}
+func (s *CalloutSuite) TestErrorHandler() {
+	// here's a simple AuthorizerFn function that authorizes all users
+	theErr := errors.New("testing")
+	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
+		return "", theErr
+	}
+
+	serviceConn := s.getServiceConn()
+	defer serviceConn.Close()
+	info := nst.ClientInfo(s.T(), serviceConn)
+	s.Equal(s.env.ServiceAudience(), info.Data.Account)
+
+	var lastErr error
+	errCb := func(err error) {
+		lastErr = err
+	}
+
+	opts := append(s.env.ServiceOpts(),
+		Authorizer(authorizer),
+		// Logger(nst.NewNilLogger()),
+		ErrCallback(errCb))
+	svc, err := NewAuthorizationService(serviceConn, opts...)
+	s.NoError(err)
+	s.NotNil(svc)
+	defer func() {
+		_ = svc.Stop()
+	}()
+
+	c, err := s.userConn(nats.UserInfo("hello", "world"))
+	s.Error(err)
+	s.Nil(c)
+
+	s.Error(lastErr)
+	s.True(errors.Is(lastErr, theErr))
 }
 
-func (m *ServiceMsgAdapter) Respond([]byte, ...micro.RespondOpt) error {
-	return m.msg.Respond(m.msg.Data)
-}
+func (s *CalloutSuite) TestUserErrorHandler() {
+	// here's a simple AuthorizerFn function that authorizes all users
+	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
+		return "not a jwt", nil
+	}
 
-func (m *ServiceMsgAdapter) RespondJSON(any, ...micro.RespondOpt) error {
-	return m.msg.Respond(m.msg.Data)
-}
+	serviceConn := s.getServiceConn()
+	defer serviceConn.Close()
+	info := nst.ClientInfo(s.T(), serviceConn)
+	s.Equal(s.env.ServiceAudience(), info.Data.Account)
 
-func (m *ServiceMsgAdapter) Error(code, description string, data []byte, opts ...micro.RespondOpt) error {
-	return nil
-}
+	var jwtErr error
+	var token string
+	iuCb := func(jwt string, err error) {
+		token = jwt
+		jwtErr = err
+	}
 
-// Data returns request data.
-func (m *ServiceMsgAdapter) Data() []byte {
-	return m.msg.Data
-}
+	opts := append(s.env.ServiceOpts(),
+		Authorizer(authorizer),
+		Logger(nst.NewNilLogger()),
+		InvalidUser(iuCb))
+	svc, err := NewAuthorizationService(serviceConn, opts...)
+	s.NoError(err)
+	s.NotNil(svc)
+	defer func() {
+		_ = svc.Stop()
+	}()
 
-// Headers returns request headers.
-func (m *ServiceMsgAdapter) Headers() micro.Headers {
-	return nil
-}
+	c, err := s.userConn(nats.UserInfo("hello", "world"))
+	s.Error(err)
+	s.Nil(c)
 
-// Subject returns underlying NATS message subject.
-func (m *ServiceMsgAdapter) Subject() string {
-	return m.msg.Subject
-}
-
-func (m *ServiceMsgAdapter) Reply() string {
-	return m.msg.Reply
+	s.Error(jwtErr)
+	s.Equal(token, "not a jwt")
 }
