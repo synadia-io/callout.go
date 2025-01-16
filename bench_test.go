@@ -1,7 +1,6 @@
 package callout
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -13,52 +12,19 @@ import (
 )
 
 type BenchSuite struct {
-	m           *testing.TB
-	dir         *nst.TestDir
-	env         CalloutEnv
-	ns          *nst.NatsServer
-	services    []*AuthorizationService
-	serviceConn []*nats.Conn
+	m        *testing.TB
+	dir      *nst.TestDir
+	env      CalloutEnv
+	ns       *nst.NatsServer
+	services []*AuthorizationService
 }
 
 func (bs *BenchSuite) Cleanup() {
-	for _, c := range bs.serviceConn {
-		c.Close()
-	}
 	for _, s := range bs.services {
 		_ = s.Stop()
 	}
 	bs.ns.Shutdown()
 	bs.dir.Cleanup()
-}
-
-type Samples struct {
-	tb       *testing.B
-	start    time.Time
-	duration time.Duration
-	avg      time.Duration
-	max      float64
-}
-
-func NewSamples(tb *testing.B) *Samples {
-	return &Samples{
-		tb:    tb,
-		start: time.Now(),
-	}
-}
-
-func (b *Samples) Done() {
-	b.duration = time.Since(b.start)
-	b.avg = b.duration / time.Duration(b.tb.N)
-	b.max = float64(time.Second / b.avg)
-}
-
-func (b *Samples) String() string {
-	return fmt.Sprintf("%d ops - total time: %v avg: %v max clients: ~%v", b.tb.N, b.duration, b.avg, b.max)
-}
-
-func (b *Samples) Print(format string) {
-	b.tb.Logf(format, b)
 }
 
 func Setup(tb testing.TB, opts ...Option) *BenchSuite {
@@ -67,7 +33,7 @@ func Setup(tb testing.TB, opts ...Option) *BenchSuite {
 
 	ns := nst.NewNatsServer(tb, &natsserver.Options{
 		ConfigFile: dir.WriteFile("server.conf", env.GetServerConf()),
-		Port:       -1,
+		Port:       4222,
 		Debug:      false,
 		Trace:      false,
 		NoLog:      true,
@@ -95,9 +61,8 @@ func (bs *BenchSuite) AddService(tb testing.TB, opts ...Option) {
 	}
 
 	var err error
-	nc, err := bs.ns.MaybeConnect(bs.env.ServiceUserOpts()...)
+	nc := bs.ns.RequireConnect(bs.env.ServiceUserOpts()...)
 	require.NoError(tb, err)
-	bs.serviceConn = append(bs.serviceConn, nc)
 
 	opts = append(bs.env.ServiceOpts(),
 		Authorizer(authorizer),
@@ -118,18 +83,20 @@ func Benchmark_Auth(b *testing.B) {
 	opts = append(opts, bs.env.UserOpts()...)
 	b.ResetTimer()
 
-	ok := 0
-	sample := NewSamples(b)
+	errs := 0
 	for i := 0; i < b.N; i++ {
-		_, err := bs.ns.MaybeConnect(opts...)
-		if err == nil {
-			ok++
+		nc, err := bs.ns.UntrackedConnection(opts...)
+		if err != nil {
+			errs++
+		} else {
+			defer nc.Close()
 		}
 	}
 
-	sample.Done()
-	sample.Print("%v")
-	b.Logf("OK %v", ok)
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "auths/sec")
+	if errs > 0 {
+		b.ReportMetric(float64(errs), "failed")
+	}
 }
 
 func Benchmark_AuthParallel(b *testing.B) {
@@ -138,21 +105,23 @@ func Benchmark_AuthParallel(b *testing.B) {
 
 	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
 	opts = append(opts, bs.env.UserOpts()...)
+	errs := 0
 	b.ResetTimer()
 
-	ok := 0
-	sample := NewSamples(b)
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, err := bs.ns.MaybeConnect(opts...)
-			if err == nil {
-				ok++
+			nc, err := bs.ns.UntrackedConnection(opts...)
+			if err != nil {
+				errs++
+			} else {
+				defer nc.Close()
 			}
 		}
 	})
-	sample.Done()
-	sample.Print("%v")
-	b.Logf("OK %v", ok)
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "auths/sec")
+	if errs > 0 {
+		b.ReportMetric(float64(errs), "failed")
+	}
 }
 
 func Benchmark_AuthMultipleServiceEndpoints(b *testing.B) {
@@ -161,22 +130,23 @@ func Benchmark_AuthMultipleServiceEndpoints(b *testing.B) {
 
 	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
 	opts = append(opts, bs.env.UserOpts()...)
+	errs := 0
 	b.ResetTimer()
 
-	sample := NewSamples(b)
-	ok := 0
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, err := bs.ns.MaybeConnect(opts...)
-			if err == nil {
-				ok++
+			nc, err := bs.ns.UntrackedConnection(opts...)
+			if err != nil {
+				errs++
+			} else {
+				defer nc.Close()
 			}
 		}
 	})
-
-	sample.Done()
-	sample.Print("%v")
-	b.Logf("OK %v", ok)
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "auths/sec")
+	if errs > 0 {
+		b.ReportMetric(float64(errs), "failed")
+	}
 }
 
 func Benchmark_AuthAsyncWorkers(b *testing.B) {
@@ -188,19 +158,23 @@ func Benchmark_AuthAsyncWorkers(b *testing.B) {
 
 	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
 	opts = append(opts, bs.env.UserOpts()...)
+	errs := 0
 	b.ResetTimer()
-	sample := NewSamples(b)
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			nc, err := bs.ns.MaybeConnect(opts...)
-			require.NoError(b, err)
-			require.NotNil(b, nc)
+			nc, err := bs.ns.UntrackedConnection(opts...)
+			if err != nil {
+				errs++
+			} else {
+				defer nc.Close()
+			}
 		}
 	})
-
-	sample.Done()
-	sample.Print("%v")
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "auths/sec")
+	if errs > 0 {
+		b.ReportMetric(float64(errs), "failed")
+	}
 }
 
 func Benchmark_AuthMultipleServices(b *testing.B) {
@@ -212,17 +186,21 @@ func Benchmark_AuthMultipleServices(b *testing.B) {
 
 	opts := []nats.Option{nats.UserInfo("hello", "world"), nats.MaxReconnects(0)}
 	opts = append(opts, bs.env.UserOpts()...)
+	errs := 0
 	b.ResetTimer()
-	sample := NewSamples(b)
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			nc, err := bs.ns.MaybeConnect(opts...)
-			require.NoError(b, err)
-			require.NotNil(b, nc)
+			nc, err := bs.ns.UntrackedConnection(opts...)
+			if err != nil {
+				errs++
+			} else {
+				defer nc.Close()
+			}
 		}
 	})
-
-	sample.Done()
-	sample.Print("%v")
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "auths/sec")
+	if errs > 0 {
+		b.ReportMetric(float64(errs), "failed")
+	}
 }

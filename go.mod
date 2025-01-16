@@ -1,9 +1,9 @@
 module github.com/aricart/callout.go
 
-go 1.22
+go 1.22.0
 
 require (
-	github.com/aricart/nst.go v0.0.9
+	github.com/aricart/nst.go v0.0.11
 	github.com/nats-io/jwt/v2 v2.7.3
 	github.com/nats-io/nats-server/v2 v2.11.0-preview.2
 	github.com/nats-io/nats.go v1.38.0

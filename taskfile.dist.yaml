@@ -43,4 +43,8 @@ tasks:
     cmds:
       - go test -run ^\$ -testify.m={{.CLI_ARGS}}
 
+  auth:
+    cmds:
+      - go test -run ^\$ -bench=Benchmark_Auth -cpu 16
+
 
