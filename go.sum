@@ -1,7 +1,8 @@
 dario.cat/mergo v1.0.1 h1:Ra4+bf83h2ztPIQYNP99R6m+Y7KfnARDfID+a+vLl4s=
 dario.cat/mergo v1.0.1/go.mod h1:uNxQE+84aUszobStD9th8a29P2fMDhsBdgRYvZOxGmk=
-github.com/aricart/nst.go v0.0.9 h1:rwsbbub+o/IDsx4vyPKVGwkYu+ZEx3HiYMawm5iPUcw=
 github.com/aricart/nst.go v0.0.9/go.mod h1:ecOJcn+Sf9cwwFCLCfbP3L5HeUNstoGEYs9odOm0j9Y=
+github.com/aricart/nst.go v0.0.11 h1:hKISAKTVfoSykT4l3dVnrC2DqX1DGPmKZl1ZNvt8wvw=
+github.com/aricart/nst.go v0.0.11/go.mod h1:ecOJcn+Sf9cwwFCLCfbP3L5HeUNstoGEYs9odOm0j9Y=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

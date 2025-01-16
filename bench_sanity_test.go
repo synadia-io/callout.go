@@ -1,7 +1,6 @@
 package callout
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -24,7 +23,6 @@ func Benchmark_EncodeJwts(b *testing.B) {
 	upk, err := ukp.PublicKey()
 	require.NoError(b, err)
 	b.ResetTimer()
-	sample := NewSamples(b)
 
 	for i := 0; i < b.N; i++ {
 		uc := jwt.NewUserClaims(upk)
@@ -35,9 +33,7 @@ func Benchmark_EncodeJwts(b *testing.B) {
 		_, err = uc.Encode(akp)
 		require.NoError(b, err)
 	}
-
-	sample.Done()
-	sample.Print("%v jwts/sec")
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "jwts/sec")
 }
 
 func Benchmark_ParallelEncodeJwts(b *testing.B) {
@@ -50,7 +46,6 @@ func Benchmark_ParallelEncodeJwts(b *testing.B) {
 	upk, err := ukp.PublicKey()
 	require.NoError(b, err)
 	b.ResetTimer()
-	sample := NewSamples(b)
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
@@ -63,8 +58,8 @@ func Benchmark_ParallelEncodeJwts(b *testing.B) {
 			require.NoError(b, err)
 		}
 	})
-	sample.Done()
-	sample.Print("%v jwts/sec")
+
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "jwts/sec")
 }
 
 func Benchmark_ServiceHandler(b *testing.B) {
@@ -100,8 +95,6 @@ func Benchmark_ServiceHandler(b *testing.B) {
 
 	b.ResetTimer()
 
-	sample := NewSamples(b)
-
 	for i := 0; i < b.N; i++ {
 		r := jwt.NewAuthorizationRequestClaims(spk)
 		r.UserNkey = upk
@@ -115,8 +108,7 @@ func Benchmark_ServiceHandler(b *testing.B) {
 		callout.ServiceHandler(mr)
 	}
 
-	sample.Done()
-	sample.Print("%v clients/sec")
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "auths/sec")
 }
 
 func Benchmark_ParallelServiceHandler(b *testing.B) {
@@ -151,9 +143,6 @@ func Benchmark_ParallelServiceHandler(b *testing.B) {
 	}}
 
 	b.ResetTimer()
-
-	sample := NewSamples(b)
-
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			r := jwt.NewAuthorizationRequestClaims(spk)
@@ -169,15 +158,14 @@ func Benchmark_ParallelServiceHandler(b *testing.B) {
 		}
 	})
 
-	sample.Done()
-	sample.Print("%v clients/sec")
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "auths/sec")
 }
 
 func Benchmark_MicroRequestReply(b *testing.B) {
-	ns := nst.NewNatsServer(b, &natsserver.Options{})
+	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
 	defer ns.Shutdown()
 
-	srv := ns.Connect()
+	srv := ns.RequireConnect()
 	config := micro.Config{
 		Name:        "sample",
 		Version:     "0.0.1",
@@ -191,24 +179,24 @@ func Benchmark_MicroRequestReply(b *testing.B) {
 	}
 	_, _ = micro.AddService(srv, config)
 
-	client := ns.Connect()
+	client := ns.RequireConnect()
 	b.ResetTimer()
 
-	sample := NewSamples(b)
 	for i := 0; i < b.N; i++ {
 		_, err := client.Request("q", nil, time.Second)
 		require.NoError(b, err)
 	}
-	sample.Done()
-	sample.Print("%v requests/sec")
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "reqrep/sec")
 }
 
 func Benchmark_MicroAsyncRequestReply(b *testing.B) {
-	ns := nst.NewNatsServer(b, &natsserver.Options{})
+	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
 	defer ns.Shutdown()
 
-	srv := ns.Connect()
+	srv := ns.RequireConnect()
 	ch := make(chan micro.Request, 5000)
+	defer close(ch)
+
 	for i := 0; i < 10; i++ {
 		go func() {
 			for {
@@ -235,90 +223,97 @@ func Benchmark_MicroAsyncRequestReply(b *testing.B) {
 	}
 	_, _ = micro.AddService(srv, config)
 
-	client := ns.Connect()
+	client := ns.RequireConnect()
 	b.ResetTimer()
 
-	sample := NewSamples(b)
-	var wg sync.WaitGroup
-	wg.Add(b.N)
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			_, err := client.Request("q", nil, time.Second)
 			require.NoError(b, err)
-			wg.Done()
+
 		}
 	})
-	wg.Wait()
-
-	sample.Done()
-	close(ch)
-	sample.Print("%v requests/sec")
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "reqrep/sec")
 }
 
 func Benchmark_RequestReply(b *testing.B) {
-	ns := nst.NewNatsServer(b, &natsserver.Options{})
+	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
 	defer ns.Shutdown()
 
-	srv := ns.Connect()
+	srv := ns.RequireConnect()
 	_, _ = srv.Subscribe("q", func(m *nats.Msg) {
 		_ = m.Respond(nil)
 	})
 
-	client := ns.Connect()
+	client := ns.RequireConnect()
 	b.ResetTimer()
 
-	sample := NewSamples(b)
 	for i := 0; i < b.N; i++ {
 		_, err := client.Request("q", nil, time.Second)
 		require.NoError(b, err)
 	}
-	sample.Done()
-	sample.Print("%v requests/sec")
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "reqrep/sec")
+}
+
+func Benchmark_ParallelRequestReply(b *testing.B) {
+	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
+	defer ns.Shutdown()
+
+	srv := ns.RequireConnect()
+	_, _ = srv.Subscribe("q", func(m *nats.Msg) {
+		_ = m.Respond(nil)
+	})
+
+	client := ns.RequireConnect()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_, err := client.Request("q", nil, time.Second)
+			require.NoError(b, err)
+		}
+	})
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "reqrep/sec")
+}
+
+func Benchmark_Connect(b *testing.B) {
+	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
+	defer ns.Shutdown()
+
+	errs := 0
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		nc, err := nats.Connect(ns.Url)
+		if err == nil {
+			defer nc.Close()
+		} else {
+			errs++
+		}
+	}
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "conns/sec")
+	if errs > 0 {
+		b.ReportMetric(float64(errs), "failed")
+	}
 }
 
 func Benchmark_ParallelConnect(b *testing.B) {
 	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
 	defer ns.Shutdown()
 
+	errs := 0
 	b.ResetTimer()
-	sample := NewSamples(b)
-	ok := 0
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, err := ns.MaybeConnect()
-			if err == nil {
-				ok++
+			nc, err := nats.Connect(ns.Url)
+			if err != nil {
+				errs++
+			} else {
+				defer nc.Close()
 			}
 		}
 	})
-	sample.Done()
-	sample.Print("%v connects/sec")
-	b.Logf("ok=%d", ok)
-}
-
-func Benchmark_ParallelRequestReply(b *testing.B) {
-	ns := nst.NewNatsServer(b, &natsserver.Options{})
-	defer ns.Shutdown()
-
-	srv := ns.Connect()
-	_, _ = srv.Subscribe("q", func(m *nats.Msg) {
-		_ = m.Respond(nil)
-	})
-
-	client := ns.Connect()
-	b.ResetTimer()
-
-	sample := NewSamples(b)
-	var wg sync.WaitGroup
-	wg.Add(b.N)
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			_, err := client.Request("q", nil, time.Second)
-			require.NoError(b, err)
-			wg.Done()
-		}
-	})
-	wg.Wait()
-	sample.Done()
-	sample.Print("%v requests/sec")
+	b.ReportMetric(float64(time.Second/(b.Elapsed()/time.Duration(b.N))), "conns/sec")
+	if errs > 0 {
+		b.ReportMetric(float64(errs), "failed")
+	}
 }
