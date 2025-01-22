@@ -172,5 +172,15 @@ Delegated Authentication increases the complixity a bit more. When using
 A more complicated example using
 [delegated authentication can be found here](examples/delegated/README.md).
 
+### WebSocket
+
+When using websockets, the `websocket` configuration on the server can specify
+
+- `jwt_cookie` (only if using delegated auth), `user_cookie`, `pass_cookie`,
+  `token_cookie`, these options specify the name of a cookie that is mapped to
+  the connect option of the same name. Note that because of CORS, the cookies
+  will have to be `Secure` and `SameSite` (`HttpOnly` is good too) (at least for
+  browsers). This enables websockets on a browser to the connection options
+  injected on HTTP server.
 
 ## More Examples TBD (look at the source Luke)
