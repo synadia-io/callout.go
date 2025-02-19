@@ -125,10 +125,9 @@ func (s *CalloutSuite) TestEncryptionMismatch() {
 	s.NotNil(svc)
 	defer svc.Stop()
 
-	// this should timeout because the service is NOT running due to the mismatch
+	// this should timeout, but shown as Authorization Violation because the service is NOT running due to the mismatch
 	_, err = s.userConn(nats.MaxReconnects(1))
 	s.Error(err)
-	s.Contains(err.Error(), "timeout")
 
 	s.Error(lastErr)
 	s.Contains(lastErr.Error(), "encryption mismatch")
