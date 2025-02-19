@@ -6,7 +6,6 @@ import (
 
 	"github.com/aricart/nst.go"
 	"github.com/nats-io/jwt/v2"
-	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/micro"
 	"github.com/nats-io/nkeys"
@@ -162,7 +161,9 @@ func Benchmark_ParallelServiceHandler(b *testing.B) {
 }
 
 func Benchmark_MicroRequestReply(b *testing.B) {
-	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
+	dir := nst.NewTestDir(b, "", "bench")
+	defer dir.Cleanup()
+	ns := nst.NewNatsServer(dir, &nst.Options{Port: -1})
 	defer ns.Shutdown()
 
 	srv := ns.RequireConnect()
@@ -190,7 +191,9 @@ func Benchmark_MicroRequestReply(b *testing.B) {
 }
 
 func Benchmark_MicroAsyncRequestReply(b *testing.B) {
-	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
+	dir := nst.NewTestDir(b, "", "bench")
+	defer dir.Cleanup()
+	ns := nst.NewNatsServer(dir, &nst.Options{Port: -1})
 	defer ns.Shutdown()
 
 	srv := ns.RequireConnect()
@@ -237,7 +240,9 @@ func Benchmark_MicroAsyncRequestReply(b *testing.B) {
 }
 
 func Benchmark_RequestReply(b *testing.B) {
-	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
+	dir := nst.NewTestDir(b, "", "bench")
+	defer dir.Cleanup()
+	ns := nst.NewNatsServer(dir, &nst.Options{Port: -1})
 	defer ns.Shutdown()
 
 	srv := ns.RequireConnect()
@@ -256,7 +261,9 @@ func Benchmark_RequestReply(b *testing.B) {
 }
 
 func Benchmark_ParallelRequestReply(b *testing.B) {
-	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
+	dir := nst.NewTestDir(b, "", "bench")
+	defer dir.Cleanup()
+	ns := nst.NewNatsServer(dir, &nst.Options{Port: -1})
 	defer ns.Shutdown()
 
 	srv := ns.RequireConnect()
@@ -277,13 +284,16 @@ func Benchmark_ParallelRequestReply(b *testing.B) {
 }
 
 func Benchmark_Connect(b *testing.B) {
-	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
+	dir := nst.NewTestDir(b, "", "bench")
+	defer dir.Cleanup()
+	ns := nst.NewNatsServer(dir, &nst.Options{Port: -1})
 	defer ns.Shutdown()
 
 	errs := 0
+	u := ns.NatsURLs()[0]
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		nc, err := nats.Connect(ns.Url)
+		nc, err := nats.Connect(u)
 		if err == nil {
 			defer nc.Close()
 		} else {
@@ -297,14 +307,17 @@ func Benchmark_Connect(b *testing.B) {
 }
 
 func Benchmark_ParallelConnect(b *testing.B) {
-	ns := nst.NewNatsServer(b, &natsserver.Options{Port: -1})
+	dir := nst.NewTestDir(b, "", "bench")
+	defer dir.Cleanup()
+	ns := nst.NewNatsServer(dir, &nst.Options{Port: -1})
 	defer ns.Shutdown()
 
 	errs := 0
+	u := ns.NatsURLs()[0]
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			nc, err := nats.Connect(ns.Url)
+			nc, err := nats.Connect(u)
 			if err != nil {
 				errs++
 			} else {
