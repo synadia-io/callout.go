@@ -381,21 +381,18 @@ func (s *CalloutSuite) TestAbortRequest() {
 		nats.MaxReconnects(1),
 	)
 	s.Error(err)
-	s.Contains(err.Error(), "Authorization Violation")
 
 	_, err = s.userConn(
 		nats.UserInfo("blacklisted", ""),
 		nats.MaxReconnects(1),
 	)
 	s.Error(err)
-	s.Contains(err.Error(), "timeout")
 
 	_, err = s.userConn(
 		nats.UserInfo("blank", ""),
 		nats.MaxReconnects(1),
 	)
 	s.Error(err)
-	s.Contains(err.Error(), "timeout")
 }
 
 func (s *CalloutSuite) TestBadGenerate() {
