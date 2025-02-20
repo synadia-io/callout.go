@@ -6,7 +6,6 @@ import (
 
 	"github.com/aricart/nst.go"
 	"github.com/nats-io/jwt/v2"
-	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +14,7 @@ type BenchSuite struct {
 	m        *testing.TB
 	dir      *nst.TestDir
 	env      CalloutEnv
-	ns       *nst.NatsServer
+	ns       nst.NatsServer
 	services []*AuthorizationService
 }
 
@@ -31,12 +30,9 @@ func Setup(tb testing.TB, opts ...Option) *BenchSuite {
 	dir := nst.NewTestDir(tb, "", "")
 	env := NewBasicEnv(tb, dir)
 
-	ns := nst.NewNatsServer(tb, &natsserver.Options{
+	ns := nst.NewNatsServer(dir, &nst.Options{
 		ConfigFile: dir.WriteFile("server.conf", env.GetServerConf()),
 		Port:       4222,
-		Debug:      false,
-		Trace:      false,
-		NoLog:      true,
 	})
 
 	bs := &BenchSuite{
