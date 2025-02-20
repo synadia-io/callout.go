@@ -13,7 +13,7 @@ tasks:
       - rm -f ./coverage.out
       - go test -coverpkg=./... -coverprofile=./coverage.out ./...
       - mv coverage.out _coverage.out
-      - cat _coverage.out | grep -v "callout/examples/" > coverage.out
+      - cat _coverage.out | grep -v "callout.go/examples/" > coverage.out
       - rm _coverage.out
   lint:
     cmds:
