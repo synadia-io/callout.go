@@ -119,7 +119,7 @@ authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
 }
 
 // create a connection using the callout user
-nc, _ := nats.Connect(nats.UserInfo("auth", "pwd"))
+nc, _ := nats.Connect("nats://127.0.0.1", nats.UserInfo("auth", "pwd"))
 
 // configure the authorization service with the connection, the function that 
 // generates users, and the key to use to issue the jwt.AuthorizationResponseClaims
