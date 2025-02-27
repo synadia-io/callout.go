@@ -2,7 +2,7 @@
 
 [![Coverage Status](https://coveralls.io/repos/github/synadia-io/callout.go/badge.svg?branch=main)](https://coveralls.io/github/synadia-io/callout.go?branch=main)
 [![License Apache 2](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Go Report Card](https://goreportcard.com/badge/github.com/synadia-io/callout.go)](https://goreportcard.com/report/github.com/aricart/callout.go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/synadia-io/callout.go)](https://goreportcard.com/report/github.com/synadia-io/callout.go)
 
 This library implements a small framework for writing AuthCallout services for
 NATS.
