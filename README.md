@@ -129,7 +129,7 @@ svc, err := NewAuthorizationService(serviceConn, Authorizer(authorizer), Respons
 
 #### Adding Encryption
 
-AuthorizatinRequests can be encrypted. Encrypting ensures that requests are
+AuthorizationRequests can be encrypted. Encrypting ensures that requests are
 readable only to the owner of the specified encryption key, and that responses
 are only readable to the server that sent the request.
 

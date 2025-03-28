@@ -9,10 +9,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/aricart/callout.go"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
+
+	"github.com/synadia-io/callout.go"
 )
 
 func loadAndParseKeys(fp string) (nkeys.KeyPair, error) {
