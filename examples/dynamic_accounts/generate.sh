@@ -35,12 +35,18 @@ nsc add user --account C --name sentinel --deny-pubsub \>
 # the callout account needs to specify the ID of the service user, and the accounts
 # that it can generate authorizations for
 nsc edit authcallout --account C --auth-user $SERVICE --allowed-account "*"
+# Export the JWT for account C
+nsc describe account --raw -o $OUTDIR/C.jwt
 
 # make a server configuration file
 nsc generate config --nats-resolver --config-file /tmp/DA/server.conf
 # extract the creds for the service and callout so we can use them
 nsc generate creds --account C --name service -o $OUTDIR/service.creds
 nsc generate creds --account C --name sentinel -o $OUTDIR/sentinel.creds
+#Generate again as bearer so we can use it as default_sentinel
+nsc edit user sentinel --bearer
+nsc generate creds --account C --name sentinel -o $OUTDIR/sentinel_bearer.creds
+
 
 mkdir -p $OUTDIR/jwt
 nsc describe account C --raw > "$OUTDIR/jwt/$CALLOUT.jwt"
