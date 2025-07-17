@@ -6,13 +6,17 @@ takes place on the account JWTs. Here's a [script that builds an environment](ge
 And a [Go program](delegated_example.go) that uses the library and the results of the above 
 script to run a service.
 
-To run, execute the script, and then
+To run, execute the generate.sh script and install the C account. By running nsc push (see below) after the server is started.
+
 ```bash
 # the script will put things in /tmp/DA
 nats-server -c /tmp/DA/server.conf
 
+# push the C account (if not installed in preload)
+nsc -u nats://localhost:4222 push
+
 # in another terminal run the callout service:
-go run callout.go --creds /tmp/DA/service.creds --callout-issuer /tmp/DA/C.nk --issuer /tmp/DA/A.nk 
+go run delegated_example.go --creds /tmp/DA/service.creds --callout-issuer /tmp/DA/C.nk --issuer /tmp/DA/A.nk 
 
 # in another terminal try - callout will reject user named 'bad'
 nats -s localhost:4222 --creds /tmp/DA/sentinel.creds --connection-name=bad pub hello hi
