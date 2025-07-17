@@ -25,6 +25,8 @@ nsc generate creds --account SYS --name sys -o $OUTDIR/sys.creds
 nsc add account C
 # capture the ID (subject) for the callout account
 CALLOUT=$(nsc describe account C --json | jq .sub -r)
+# Get the seed (private nkey) for the callout account. 
+# This will be used to sign/encrypt the response from the callout service
 cp "$XDG_DATA_HOME/nats/nsc/keys/keys/A/${CALLOUT:1:2}/${CALLOUT}.nk" $OUTDIR/C.nk
 # add the service user, this user is for the callout service to connect to NATS
 nsc add user service

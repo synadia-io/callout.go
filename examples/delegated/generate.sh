@@ -38,9 +38,11 @@ nsc generate config --mem-resolver --config-file /tmp/DA/server.conf
 # extract the creds for the service and callout so we can use them
 nsc generate creds --account C --name service -o $OUTDIR/service.creds
 nsc generate creds --account C --name sentinel -o $OUTDIR/sentinel.creds
-# need the callout account to sign the authorization responses
+# Get the seed (private nkey) for the callout account. 
+# This will be used to sign/encrypt the response from the callout service
 cp "$XDG_DATA_HOME/nats/nsc/keys/keys/A/${CALLOUT:1:2}/${CALLOUT}.nk" $OUTDIR/C.nk
-# need the placement account for issuing users
+# Get the seed (private nkey) for the placement account. 
+# This will be used to sign the user JWT for this placement account
 cp "$XDG_DATA_HOME/nats/nsc/keys/keys/A/${ACCOUNT:1:2}/${ACCOUNT}.nk" $OUTDIR/A.nk
 
 
