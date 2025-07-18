@@ -60,12 +60,14 @@ func main() {
 
 	// the authorizer function
 	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
+        //Create a new user. We do set any options or permissions in this example.
 		uc := jwt.NewUserClaims(req.UserNkey)
 		if req.ConnectOptions.Name == "bad" {
 			// ignore this user
 			return "", nil
 		}
 		fmt.Println("namer: ", uc.Name, "")
+        //Encode the user claim as JWT, set the account and sign with the account signing key.
 		return uc.Encode(aKP)
 	}
 

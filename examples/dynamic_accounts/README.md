@@ -1,5 +1,18 @@
 ## Dynamic Accounts (Proof of Concept)
 
+### What do we do here
+* There examples runs NATS in operator mode (aka distributed security)
+* generate.sh create a NATS operator, config files, accounts and user and configures the auth callout
+* Account C is configured to receive auth callout calls which are processed by the the callout service in `delegated_example.go`
+* Client.go  receives an `-account-name B` and passes it to the connection in the `token` field
+* On the auth callout service
+    * Checks if token is present
+    * Creates a new account named accordingly on the fly using the operator nkey to sign it 
+    * Installs the accounts and extract the account nkey
+    * Creates a user JWT in the new account and signs it
+
+
+### Execute example
 Using a NATS resolver it is possible to create accounts on the fly to place
 users. This has an interesting niche use-case. All of it can be accomplished via
 a callout, so long as the callout can create an account, deploy it, and create
@@ -11,19 +24,11 @@ server would be aware of the account, and the connection would proceed.
 And a [Go program](dynamic.go) that uses the library and the results of the
 above script to run a service. And a client [Go Program](client/client.go)
 
-To run, execute the generate.sh script and install the C account. Either by adding it to the preload section or running nsc push (see below)
+To run, execute the generate.sh script.
 
 ```bash
-# Install C in preload (or push after running the nats server)
-nsc describe account C
-# Add to the preload section of server.conf
-# <account ID>:<Content of C.jwt - without the comment>
-
 # the script will put things in /tmp/DA
 nats-server -c /tmp/DA/server.conf
-
-# push the C account (if not installed in preload)
-nsc -u nats://localhost:4222 push
 
 # in another terminal run the callout service:
 go run dynamic.go -operator-key /tmp/DA/operator.nk -sys /tmp/DA/sys.creds -callout-issuer /tmp/DA/C.nk -creds /tmp/DA/service.creds
@@ -43,10 +48,16 @@ nats -s localhost:4222 --creds /tmp/DA/service.creds pub hello hi
 ## Using a default sentinel
 Alternatively to passing the sentinel.creds NATS allows for configuring a default sentinel in the server.conf. The JWT presented as sentinel must be a bearer JWT.
 
-The generate.sh creates a sentinel_bearer.creds for this purpose.
+`generate.sh` creates a sentinel_bearer.creds for this purpose.
 
+Add to server.conf (replace the JWT with the JWT from sentinel_bearer.creds )
 
 For example:
 ```
 "default_sentinel": "eyJ0eXAiOiJKV1QiLCJhbGciOiJlZDI1NTE5LW5rZXkifQ.eyJqdGkiOiJDUEhWT1ZPWElJUFdKRDJZVkw1T0pIS0lLTFc2R05aWDdYQUNNN0hGWDNIVUZWVjRBNEFRIiwiaWF0IjoxNzUyNjMxODYzLCJpc3MiOiJBQjVYVklONEZaTllYTlYyWDZYN0ZWVlJFN0E0RUQ3M0JZNEVOUFJOQUdLS0pRN1JXUjJRNUFTUyIsIm5hbWUiOiJzZW50aW5lbCIsInN1YiI6IlVBMklZNlQ0Q1dOUlNFWVFZTkhQVzZIWEhCWkFOQ0ZaT0xMUVk3TlJWSlNYT0kzVUVZU1RaS0hGIiwibmF0cyI6eyJwdWIiOnsiZGVueSI6WyJcdTAwM2UiXX0sInN1YiI6eyJkZW55IjpbIlx1MDAzZSJdfSwic3VicyI6LTEsImRhdGEiOi0xLCJwYXlsb2FkIjotMSwidHlwZSI6InVzZXIiLCJ2ZXJzaW9uIjoyfX0.onyBWBv1a0g4HYS7nkYk59bsHgodtmUeoeWH72PVI76QjZzrGcR4iTeefjTc8pTqK0FibkLttpWhCN11IkktDg",
 ```
+
+````
+# Now the sentinel creds are added from default_sentinel when not presented by the client
+go run client.go -account-name B
+````

@@ -38,6 +38,10 @@ nsc generate config --mem-resolver --config-file /tmp/DA/server.conf
 # extract the creds for the service and callout so we can use them
 nsc generate creds --account C --name service -o $OUTDIR/service.creds
 nsc generate creds --account C --name sentinel -o $OUTDIR/sentinel.creds
+#Generate again as bearer so we can use it as default_sentinel
+nsc edit user sentinel --bearer
+nsc generate creds --account C --name sentinel -o $OUTDIR/sentinel_bearer.creds
+
 # Get the seed (private nkey) for the callout account. 
 # This will be used to sign/encrypt the response from the callout service
 cp "$XDG_DATA_HOME/nats/nsc/keys/keys/A/${CALLOUT:1:2}/${CALLOUT}.nk" $OUTDIR/C.nk

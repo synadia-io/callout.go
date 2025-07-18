@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	//"errors"
 	"flag"
 	"fmt"
 	"time"
@@ -11,22 +11,23 @@ import (
 
 func getConnectionOptions(fp string) ([]nats.Option, error) {
 	if fp == "" {
-		return nil, errors.New("creds file required")
+		fmt.Println("No creds file provided - pass with -creds OR make sure a default_sentinel is configured")
 	}
-	return []nats.Option{nats.UserCredentials(fp)}, nil
+	return []nats.Option{}, nil
 }
 
 func main() {
 	// load the creds, and keys
 	var credsFp, accountName string
 	// sentinel creds
-	flag.StringVar(&credsFp, "creds", "./sentinel.creds", "creds file for the client")
+	flag.StringVar(&credsFp, "creds", "", "creds file for the client")
 	// the account the user wants to be placed in
 	flag.StringVar(&accountName, "account-name", "", "account name")
 	flag.Parse()
 
 	// connect
 	opts, err := getConnectionOptions(credsFp)
+
 	opts = append(opts, nats.Token(accountName))
 	if err != nil {
 		panic(err)
