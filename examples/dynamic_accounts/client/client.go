@@ -1,7 +1,7 @@
 package main
 
 import (
-	//"errors"
+	"errors"
 	"flag"
 	"fmt"
 	"time"
