@@ -34,19 +34,5 @@ nats -s localhost:4222 --creds /tmp/DA/sentinel.creds pub hello hi
 13:03:13 Published 2 bytes to "hello"
 ```
 
-## Using a default sentinel
-Alternatively to passing the sentinel.creds NATS allows for configuring a default sentinel in the server.conf. The JWT presented as sentinel must be a bearer JWT.
-
-`generate.sh` creates a sentinel_bearer.creds for this purpose.
-
-Add to server.conf (replace the JWT with the JWT from sentinel_bearer.creds )
-````
-"default_sentinel": "eyJ0eXAiOiJKV1QiLCJhbGciOiJlZDI1NTE5LW5rZXkifQ.eyJqdGkiOiJDUEhWT1ZPWElJUFdKRDJZVkw1T0pIS0lLTFc2R05aWDdYQUNNN0hGWDNIVUZWVjRBNEFRIiwiaWF0IjoxNzUyNjMxODYzLCJpc3MiOiJBQjVYVklONEZaTllYTlYyWDZYN0ZWVlJFN0E0RUQ3M0JZNEVOUFJOQUdLS0pRN1JXUjJRNUFTUyIsIm5hbWUiOiJzZW50aW5lbCIsInN1YiI6IlVBMklZNlQ0Q1dOUlNFWVFZTkhQVzZIWEhCWkFOQ0ZaT0xMUVk3TlJWSlNYT0kzVUVZU1RaS0hGIiwibmF0cyI6eyJwdWIiOnsiZGVueSI6WyJcdTAwM2UiXX0sInN1YiI6eyJkZW55IjpbIlx1MDAzZSJdfSwic3VicyI6LTEsImRhdGEiOi0xLCJwYXlsb2FkIjotMSwidHlwZSI6InVzZXIiLCJ2ZXJzaW9uIjoyfX0.onyBWBv1a0g4HYS7nkYk59bsHgodtmUeoeWH72PVI76QjZzrGcR4iTeefjTc8pTqK0FibkLttpWhCN11IkktDg",
-`````
-
-````
-# Now the sentinel creds are added from default_sentinel when not presented by the client
-nats -s localhost:4222 pub hello hi
-````
 
 
