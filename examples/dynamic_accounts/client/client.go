@@ -20,7 +20,7 @@ func main() {
 	// load the creds, and keys
 	var credsFp, accountName string
 	// sentinel creds
-	flag.StringVar(&credsFp, "creds", "", "creds file for the client")
+	flag.StringVar(&credsFp, "creds", "./sentinel.creds", "creds file for the client")
 	// the account the user wants to be placed in
 	flag.StringVar(&accountName, "account-name", "", "account name")
 	flag.Parse()
