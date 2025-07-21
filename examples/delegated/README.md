@@ -1,18 +1,17 @@
 ## Delegated Authentication
 
 ### What do we do here
-* There examples runs NATS in operator mode (aka distributed security)
-* generate.sh create a NATS operator, config files, accounts and user and configures the auth callout
+* This example runs NATS in decentralized authentication mode (aka operator mode)
+* `generate.sh` creates a NATS operator, config files, accounts and user and configures the auth callout
 * Account C is configured to receive auth callout calls which are processed by the the callout service in `delegated_example.go`
-* Authenticated user are installed in account A
+* Authenticated user are placed in account A
 * The authentication logic itself is trivial for this example. No external services are being called. 
-    * The auth service checks the connection name `req.ConnectOptions.Name`
-    * All connection are allowed in unless the connection name is `bad`
+    * The auth callout service checks the connection name: `req.ConnectOptions.Name`
+    * All connection are allowed in unless the connection name is set to `bad`
 
 
 ### Execute example
-The delegated authentication is a bit more complex mostly because the callout configuration
-takes place on the account JWTs. Here's a [script that builds an environment](generate.sh).
+Decentralized authentication is a bit more complex mostly because the callout configuration takes place on the account JWTs. Here's a [script that builds an environment](generate.sh).
 
 And a [Go program](delegated_example.go) that uses the library and the results of the above 
 script to run a service.

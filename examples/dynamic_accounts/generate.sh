@@ -46,9 +46,6 @@ sed -i 's/: MEMORY/ {\'$'\n''    type: full\'$'\n''    dir: '\''\.\/jwt'\''\'$'\
 # extract the creds for the service and callout so we can use them
 nsc generate creds --account C --name service -o $OUTDIR/service.creds
 nsc generate creds --account C --name sentinel -o $OUTDIR/sentinel.creds
-#Generate again as bearer so we can use it as default_sentinel
-nsc edit user sentinel --bearer
-nsc generate creds --account C --name sentinel -o $OUTDIR/sentinel_bearer.creds
 
 mkdir -p $OUTDIR/jwt
 nsc describe account C --raw > "$OUTDIR/jwt/$CALLOUT.jwt"

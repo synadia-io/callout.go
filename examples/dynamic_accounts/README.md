@@ -1,16 +1,15 @@
 ## Dynamic Accounts (Proof of Concept)
 
 ### What do we do here
-* There examples runs NATS in operator mode (aka distributed security)
-* generate.sh create a NATS operator, config files, accounts and user and configures the auth callout
+* This example runs NATS in decentralized authentication (aka operator mode)
+* `generate.sh` create a NATS operator, config files, accounts and user and configures the auth callout
 * Account C is configured to receive auth callout calls which are processed by the the callout service in `delegated_example.go`
 * Client.go  receives an `-account-name B` and passes it to the connection in the `token` field
-* On the auth callout service
-    * Checks if token is present
-    * Creates a new account named accordingly on the fly using the operator nkey to sign it 
-    * Installs the accounts and extract the account nkey
+* The auth callout service
+    * Checks if the login token is present on the connection
+    * Creates a new account named accordingly using the operator nkey to sign the account 
+    * Installs the account and extracts the account nkey
     * Creates a user JWT in the new account and signs it
-
 
 ### Execute example
 Using a NATS resolver it is possible to create accounts on the fly to place
@@ -45,19 +44,3 @@ nats -s localhost:4222 --creds /tmp/DA/service.creds pub hello hi
 13:03:13 Published 2 bytes to "hello"
 ```
 
-## Using a default sentinel
-Alternatively to passing the sentinel.creds NATS allows for configuring a default sentinel in the server.conf. The JWT presented as sentinel must be a bearer JWT.
-
-`generate.sh` creates a sentinel_bearer.creds for this purpose.
-
-Add to server.conf (replace the JWT with the JWT from sentinel_bearer.creds )
-
-For example:
-```
-"default_sentinel": "eyJ0eXAiOiJKV1QiLCJhbGciOiJlZDI1NTE5LW5rZXkifQ.eyJqdGkiOiJDUEhWT1ZPWElJUFdKRDJZVkw1T0pIS0lLTFc2R05aWDdYQUNNN0hGWDNIVUZWVjRBNEFRIiwiaWF0IjoxNzUyNjMxODYzLCJpc3MiOiJBQjVYVklONEZaTllYTlYyWDZYN0ZWVlJFN0E0RUQ3M0JZNEVOUFJOQUdLS0pRN1JXUjJRNUFTUyIsIm5hbWUiOiJzZW50aW5lbCIsInN1YiI6IlVBMklZNlQ0Q1dOUlNFWVFZTkhQVzZIWEhCWkFOQ0ZaT0xMUVk3TlJWSlNYT0kzVUVZU1RaS0hGIiwibmF0cyI6eyJwdWIiOnsiZGVueSI6WyJcdTAwM2UiXX0sInN1YiI6eyJkZW55IjpbIlx1MDAzZSJdfSwic3VicyI6LTEsImRhdGEiOi0xLCJwYXlsb2FkIjotMSwidHlwZSI6InVzZXIiLCJ2ZXJzaW9uIjoyfX0.onyBWBv1a0g4HYS7nkYk59bsHgodtmUeoeWH72PVI76QjZzrGcR4iTeefjTc8pTqK0FibkLttpWhCN11IkktDg",
-```
-
-````
-# Now the sentinel creds are added from default_sentinel when not presented by the client
-go run client.go -account-name B
-````

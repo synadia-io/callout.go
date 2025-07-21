@@ -60,7 +60,7 @@ func main() {
 
 	// the authorizer function
 	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
-        //Create a new user. We do set any options or permissions in this example.
+        //Create a new user with defaults. We do not set any limits or permissions for the user in this example.
 		uc := jwt.NewUserClaims(req.UserNkey)
 		if req.ConnectOptions.Name == "bad" {
 			// ignore this user

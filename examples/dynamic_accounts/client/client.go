@@ -11,7 +11,7 @@ import (
 
 func getConnectionOptions(fp string) ([]nats.Option, error) {
 	if fp == "" {
-		fmt.Println("No creds file provided - pass with -creds OR make sure a default_sentinel is configured")
+        return nil, errors.New("creds file required")
 	}
 	return []nats.Option{}, nil
 }
