@@ -25,11 +25,11 @@ nats-server -c /tmp/DA/server.conf
 # in another terminal run the callout service:
 go run delegated_example.go --creds /tmp/DA/service.creds --callout-issuer /tmp/DA/C.nk --issuer /tmp/DA/A.nk 
 
-# in another terminal try - callout will reject user named 'bad'
+# in another terminal try - callout will reject connection named 'bad'
 nats -s localhost:4222 --creds /tmp/DA/sentinel.creds --connection-name=bad pub hello hi
 nats: error: read tcp 127.0.0.1:51120->127.0.0.1:4222: i/o timeout
 
-# but work for any other connection
+# but works for any other connection
 nats -s localhost:4222 --creds /tmp/DA/sentinel.creds pub hello hi
 13:03:13 Published 2 bytes to "hello"
 ```
