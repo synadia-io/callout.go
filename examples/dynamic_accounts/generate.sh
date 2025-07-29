@@ -25,6 +25,8 @@ nsc generate creds --account SYS --name sys -o $OUTDIR/sys.creds
 nsc add account C
 # capture the ID (subject) for the callout account
 CALLOUT=$(nsc describe account C --json | jq .sub -r)
+# Get the seed (private nkey) for the callout account. 
+# This will be used to sign/encrypt the response from the callout service
 cp "$XDG_DATA_HOME/nats/nsc/keys/keys/A/${CALLOUT:1:2}/${CALLOUT}.nk" $OUTDIR/C.nk
 # add the service user, this user is for the callout service to connect to NATS
 nsc add user service
@@ -37,7 +39,10 @@ nsc add user --account C --name sentinel --deny-pubsub \>
 nsc edit authcallout --account C --auth-user $SERVICE --allowed-account "*"
 
 # make a server configuration file
-nsc generate config --nats-resolver --config-file /tmp/DA/server.conf
+nsc generate config --mem-resolver --config-file /tmp/DA/server.conf
+# We use memory resolver to generate C account as preload but we need a nats-resolver to be able to 
+# dynamically install accounts
+sed -i 's/: MEMORY/ {\'$'\n''    type: full\'$'\n''    dir: '\''\.\/jwt'\''\'$'\n''}/g' /tmp/DA/server.conf
 # extract the creds for the service and callout so we can use them
 nsc generate creds --account C --name service -o $OUTDIR/service.creds
 nsc generate creds --account C --name sentinel -o $OUTDIR/sentinel.creds

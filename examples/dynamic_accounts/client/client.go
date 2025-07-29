@@ -11,9 +11,9 @@ import (
 
 func getConnectionOptions(fp string) ([]nats.Option, error) {
 	if fp == "" {
-		return nil, errors.New("creds file required")
+        return nil, errors.New("creds file required")
 	}
-	return []nats.Option{nats.UserCredentials(fp)}, nil
+	return []nats.Option{}, nil
 }
 
 func main() {
@@ -27,6 +27,7 @@ func main() {
 
 	// connect
 	opts, err := getConnectionOptions(credsFp)
+
 	opts = append(opts, nats.Token(accountName))
 	if err != nil {
 		panic(err)
