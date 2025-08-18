@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Fixed line breaks
 set -x
 
 # put the nsc artifacts where we can find them
