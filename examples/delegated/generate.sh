@@ -45,5 +45,3 @@ cp "$XDG_DATA_HOME/nats/nsc/keys/keys/A/${CALLOUT:1:2}/${CALLOUT}.nk" $OUTDIR/C.
 # Get the seed (private nkey) for the placement account. 
 # This will be used to sign the user JWT for this placement account
 cp "$XDG_DATA_HOME/nats/nsc/keys/keys/A/${ACCOUNT:1:2}/${ACCOUNT}.nk" $OUTDIR/A.nk
-
-
