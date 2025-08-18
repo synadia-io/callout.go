@@ -43,9 +43,10 @@ nsc generate creds --account C --name service -o $OUTDIR/service.creds
 nsc generate creds --account C --name sentinel -o $OUTDIR/sentinel_bearer.creds
 
 # Add the default sentinel to the service.conf
-sed -i.bak '1i"default_sentinel": "BEARER_JWT",' $OUTDIR/server.conf
+sed -i.bak '1i\
+"default_sentinel": "BEARER_JWT",' $OUTDIR/server.conf
 export BEARER_JWT=$(sed -n '2p' $OUTDIR/sentinel_bearer.creds)
-sed -i.bak '' "s/BEARER_JWT/$BEARER_JWT/g" $OUTDIR/server.conf
+sed -i.bak "s/BEARER_JWT/$BEARER_JWT/g" $OUTDIR/server.conf
 
 # Get the seed (private nkey) for the callout account. 
 # This will be used to sign/encrypt the response from the callout service
