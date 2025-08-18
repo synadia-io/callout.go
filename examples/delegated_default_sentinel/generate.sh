@@ -42,6 +42,7 @@ nsc generate creds --account C --name service -o $OUTDIR/service.creds
 nsc generate creds --account C --name sentinel -o $OUTDIR/sentinel_bearer.creds
 
 # Add the default sentinel to the service.conf
+# Fixed line breaks
 sed -i '1i"default_sentinel": "BEARER_JWT",' $OUTDIR/server.conf
 export BEARER_JWT=$(sed -n '2p' $OUTDIR/sentinel_bearer.creds)
 sed -i "s/BEARER_JWT/$BEARER_JWT/g" $OUTDIR/server.conf
