@@ -1,4 +1,4 @@
-// Copyright 2025 Synadia Communications, Inc
+// Copyright 2025-2026 Synadia Communications, Inc
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -202,8 +202,8 @@ func NewAuthorizationService(
 	if options.AsyncWorkers > 0 {
 		callout.workersCh = make(chan micro.Request, 5000)
 		for i := 0; i < options.AsyncWorkers; i++ {
+			callout.wg.Add(1)
 			go func() {
-				callout.wg.Add(1)
 				defer callout.wg.Done()
 				for {
 					select {
