@@ -1,4 +1,4 @@
-// Copyright 2025 Synadia Communications, Inc
+// Copyright 2025-2026 Synadia Communications, Inc
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -66,6 +66,9 @@ var (
 	// rejected, typically due to invalid credentials or other authorization
 	// failures.
 	ErrRejectedAuth = errors.New("rejected authorization request")
+	// ErrWorkerChannelFull indicates the async worker channel is at capacity
+	// and the request was dropped.
+	ErrWorkerChannelFull = errors.New("async worker channel full")
 )
 
 const (
@@ -416,7 +419,11 @@ func (c *AuthorizationService) sendResponse(
 // AsyncWorkerHandler enqueues an incoming micro.Request to the workers channel for
 // asynchronous processing.
 func (c *AuthorizationService) AsyncWorkerHandler(msg micro.Request) {
-	c.workersCh <- msg
+	select {
+	case c.workersCh <- msg:
+	default:
+		c.opts.ErrCallback(ErrWorkerChannelFull)
+	}
 }
 
 // ServiceHandler processes incoming authorization micro.Request messages, decodes
