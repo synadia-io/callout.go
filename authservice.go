@@ -205,8 +205,8 @@ func NewAuthorizationService(
 	if options.AsyncWorkers > 0 {
 		callout.workersCh = make(chan micro.Request, 5000)
 		for i := 0; i < options.AsyncWorkers; i++ {
+			callout.wg.Add(1)
 			go func() {
-				callout.wg.Add(1)
 				defer callout.wg.Done()
 				for {
 					select {
