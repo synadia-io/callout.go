@@ -1,4 +1,4 @@
-// Copyright 2025 Synadia Communications, Inc
+// Copyright 2025-2026 Synadia Communications, Inc
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -83,7 +83,7 @@ func (bc *DelegatedEnv) GetServerConf() []byte {
 
 	// configure the external authorization
 	require.NoError(bc.t,
-		c.SetExternalAuthorizationUser([]authb.User{cu}, []authb.Account{a}, ""),
+		c.SetExternalAuthorizationUser([]interface{}{cu}, []interface{}{a}, ""),
 	)
 
 	// sentinel credentials
