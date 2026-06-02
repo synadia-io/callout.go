@@ -183,4 +183,16 @@ When using websockets, the `websocket` configuration on the server can specify
   browsers). This enables websockets on a browser to the connection options
   injected on HTTP server.
 
+### FAQ
+
+#### Delegating callout across leaf node connections
+
+It is possible in principle for a leaf node to let an agent in the hub reply to an authentication request. Note that this is potentially unsafe, and therefore the `$SYS.REQ.USER.AUTH` subject is blocked by default on leaf node connections.
+
+Specifically, if the account on the hub has auth callout enabled, it will block `$SYS.REQ.USER.AUTH` from leaf nodes.
+
+This block cannot be disabled, but it can be circumvented by:
+- Connecting the auth callout accounts on the leaves to a dedicated non-auth-callout-enabled account on the hub.
+- Using import/export on the leaf node to export (and optionally rename) `$SYS.REQ.USER.AUTH` before routing to the hub.
+
 ## More Examples TBD (look at the source Luke)
