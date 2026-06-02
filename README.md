@@ -185,7 +185,7 @@ When using websockets, the `websocket` configuration on the server can specify
 
 ### FAQ
 
-#### Delegating callout across leafnode connections 
+#### Delegating callout across leafnode connections
 
 It is possible in prinicple for a leaf node let an agent in the hub reply an authentication request. Not that this is also potentially UNSAFE and therefore the `$SYS.REQ.USER.AUTH` subject is blocked by default on leaf node connections. 
 
