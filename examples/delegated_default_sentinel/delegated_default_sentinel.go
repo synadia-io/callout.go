@@ -88,6 +88,9 @@ func main() {
 
 	// start the service
 	_, err = callout.NewAuthorizationService(nc, callout.Authorizer(authorizer), callout.ResponseSignerKey(cKP))
+	if err != nil {
+		panic(fmt.Errorf("error starting the authorization service: %w", err))
+	}
 
 	// don't exit until sigterm
 	quit := make(chan os.Signal, 1)

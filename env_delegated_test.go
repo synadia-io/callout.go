@@ -68,6 +68,7 @@ func (bc *DelegatedEnv) GetServerConf() []byte {
 	a, err := o.Accounts().Add("A")
 	require.NoError(bc.t, err)
 	bc.aSigningKey, err = a.ScopedSigningKeys().Add()
+	require.NoError(bc.t, err)
 
 	// this is the auth callout account
 	c, err := o.Accounts().Add("C")

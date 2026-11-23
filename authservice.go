@@ -190,12 +190,12 @@ func NewAuthorizationService(
 	}
 	if options.ErrCallback == nil {
 		options.ErrCallback = func(err error) {
-			options.Logger.Errorf(err.Error())
+			options.Logger.Errorf("%v", err)
 		}
 	} else {
 		userFn := options.ErrCallback
 		options.ErrCallback = func(err error) {
-			options.Logger.Errorf(err.Error())
+			options.Logger.Errorf("%v", err)
 			userFn(err)
 		}
 	}
@@ -208,14 +208,8 @@ func NewAuthorizationService(
 			callout.wg.Add(1)
 			go func() {
 				defer callout.wg.Done()
-				for {
-					select {
-					case msg, ok := <-callout.workersCh:
-						if !ok {
-							return
-						}
-						callout.ServiceHandler(msg)
-					}
+				for msg := range callout.workersCh {
+					callout.ServiceHandler(msg)
 				}
 			}()
 		}

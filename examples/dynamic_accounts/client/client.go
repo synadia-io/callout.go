@@ -11,7 +11,7 @@ import (
 
 func getConnectionOptions(fp string) ([]nats.Option, error) {
 	if fp == "" {
-        return nil, errors.New("creds file required")
+		return nil, errors.New("creds file required")
 	}
 	return []nats.Option{}, nil
 }
