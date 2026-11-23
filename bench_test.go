@@ -24,7 +24,6 @@ import (
 )
 
 type BenchSuite struct {
-	m        *testing.TB
 	dir      *nst.TestDir
 	env      CalloutEnv
 	ns       nst.NatsServer
@@ -73,12 +72,14 @@ func (bs *BenchSuite) AddService(tb testing.TB, opts ...Option) {
 	nc := bs.ns.RequireConnect(bs.env.ServiceUserOpts()...)
 	require.NoError(tb, err)
 
-	opts = append(bs.env.ServiceOpts(),
+	// the caller's options go last so they apply
+	sopts := append(bs.env.ServiceOpts(),
 		Authorizer(authorizer),
 		Logger(nst.NewNilLogger()),
 	)
+	sopts = append(sopts, opts...)
 
-	svc, err := NewAuthorizationService(nc, opts...)
+	svc, err := NewAuthorizationService(nc, sopts...)
 	require.NoError(tb, err)
 	require.NotNil(tb, svc)
 	bs.services = append(bs.services, svc)

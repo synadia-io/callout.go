@@ -60,14 +60,14 @@ func main() {
 
 	// the authorizer function
 	authorizer := func(req *jwt.AuthorizationRequest) (string, error) {
-        //Create a new user with defaults. We do not set any limits or permissions for the user in this example.
+		//Create a new user with defaults. We do not set any limits or permissions for the user in this example.
 		uc := jwt.NewUserClaims(req.UserNkey)
 		if req.ConnectOptions.Name == "bad" {
 			// ignore this user
 			return "", nil
 		}
 		fmt.Println("namer: ", uc.Name, "")
-        //Encode the user claim as JWT, set the account and sign with the account signing key.
+		//Encode the user claim as JWT, set the account and sign with the account signing key.
 		return uc.Encode(aKP)
 	}
 
@@ -84,6 +84,9 @@ func main() {
 
 	// start the service
 	_, err = callout.NewAuthorizationService(nc, callout.Authorizer(authorizer), callout.ResponseSignerKey(cKP))
+	if err != nil {
+		panic(fmt.Errorf("error starting the authorization service: %w", err))
+	}
 
 	// don't exit until sigterm
 	quit := make(chan os.Signal, 1)

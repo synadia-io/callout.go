@@ -215,14 +215,8 @@ func Benchmark_MicroAsyncRequestReply(b *testing.B) {
 
 	for i := 0; i < 10; i++ {
 		go func() {
-			for {
-				select {
-				case msg, ok := <-ch:
-					if !ok {
-						return
-					}
-					_ = msg.Respond(nil)
-				}
+			for msg := range ch {
+				_ = msg.Respond(nil)
 			}
 		}()
 	}
